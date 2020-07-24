@@ -19,7 +19,6 @@ def read_data():
         iteritems = iter(csv_reader)
         next(csv_reader)
         for row in iteritems:
-            # datetimes.append(date.fromtimestamp(float(row["Time:"])))
             datetimes.append(row["Time:"])
             values.append(row["Reading:"])
 
