@@ -30,6 +30,7 @@ def store_data(data):
 
 if __name__ == "__main__":
     store_data(generate_data())
+    print("Data generated.")
 
 
 
