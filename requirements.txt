@@ -1,6 +1,5 @@
 appdirs==1.4.4
 backcall==0.2.0
-bleak==0.8.0a1
 bokeh==2.1.1
 colorama==0.4.3
 decorator==4.4.2

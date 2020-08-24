@@ -1,19 +1,30 @@
+from time import sleep
+
 from bleak import BleakClient, discover
+from bleak.exc import BleakDotNetTaskError, BleakError
 import asyncio
 import pandas as pd
 import os
+import sys
 from os import path
 import datetime
+import threading
 from datetime import timedelta
 from collections import defaultdict
+import matplotlib
+import warnings
+warnings.simplefilter("ignore", UserWarning)
+sys.coinit_flags = 2
 
-from bleak.exc import BleakDotNetTaskError, BleakError
+
+from parse_data import plt
+
 
 new_data = defaultdict(lambda: "Not found")
-
 # Time in milliseconds (!)
-storage_timing = 750
-
+storage_timing = 0
+figure_shown=0
+lines = []
 
 def notification_handler(sender, data):
     outgoing_data = pd.DataFrame()
@@ -30,7 +41,6 @@ def notification_handler(sender, data):
         if new_data["Temp Value:"] != "Not found":
             new_data[handle_desc_pairs[sender]] = [int.from_bytes(data, byteorder='little')]
 
-    # print("\nTime {0}. Dif: {1}\n".format(datetime.datetime.now(), datetime.datetime.now() - new_data["Time:"][0]))
     if len(new_data.keys()) > 2:
         if datetime.datetime.now() - timedelta(milliseconds=storage_timing) >= new_data["Time:"][0]:
             new_df = pd.DataFrame(new_data)
@@ -41,12 +51,43 @@ def notification_handler(sender, data):
                                  header=False,
                                  mode='a'  # append data to csv file
                                  )
+
+            fig = plt.gcf()
+            ax = fig.gca()
+            ax.clear()
+            data = pd.read_csv('data/streamed_data.csv')
+            data["Time:"] = [datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f") for x in data["Time:"]]
+
+            ax = fig.add_subplot(211)
+            ax.plot(data['Time:'], data['Temp Value:'], color='red')
+            ax.set(xlabel='Time', ylabel='Temperature (Celsius)',
+                   title='Temperature Reading')
+            ax.ylim = (0, 1024)
+            ax.grid()
+            rect = ax.patch
+            rect.set_facecolor('gainsboro')
+
+            ax2 = fig.add_subplot(212)
+            ax2.plot(data['Time:'], data['Strain Value:'], color='blue')
+            ax2.set(xlabel='Time', ylabel='Strain Deformation',
+                    title='Strain Gauge Reading')
+            ax2.ylim = (0, 1024)
+            ax2.grid()
+            rect = ax2.patch
+            rect.set_facecolor('gainsboro')
+            plt.subplots_adjust(hspace=0.8)
+            plt.draw()
+            plt.show()
+            plt.pause(1)
+
+
             new_data["Time:"] = [datetime.datetime.now()]
             del new_data["Temp Value:"]
             del new_data["Strain Value:"]
 
 
 async def run(event_loop):
+
     while True:
         address = ''
         try:
@@ -87,23 +128,54 @@ async def run(event_loop):
 
                 while True:
                     await asyncio.sleep(5.0)
-
-        except BleakDotNetTaskError:
-            print("Peripheral busy. Trying again.")
-            pass
+        #
+        # except BleakDotNetTaskError:
+        #     print("Peripheral busy. Trying again.")
+        #     pass
         except BleakError:
             print("Didn't connect in time. Retrying.")
             pass
 
 
-if __name__ == "__main__":
-    global handle_desc_pairs
-    handle_desc_pairs = {}
-
+def create_csv_if_not_exist():
     if not path.exists(os.getcwd() + '/data/streamed_data.csv'):
         os.makedirs(os.getcwd() + '/data', exist_ok=True)
         new_file_headers = pd.DataFrame(columns=['Time:', 'Temp Value:', 'Strain Value:'])
         new_file_headers.to_csv('data/streamed_data.csv', encoding='utf-8', index=False)
+
+
+if __name__ == "__main__":
+    global handle_desc_pairs
+
+    handle_desc_pairs = {}
+
+    create_csv_if_not_exist()
+
+    fig = plt.figure()
+    plt.ion()
+
+    data = pd.read_csv('data/streamed_data.csv')
+    data["Time:"] = [datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f") for x in data["Time:"]]
+    ax = fig.add_subplot(211)
+    ax.plot(data['Time:'], data['Temp Value:'], color='red')
+    ax.set(xlabel='Time', ylabel='Temperature (Celsius)',
+           title='Temperature Reading')
+    ax.ylim = (0, 1024)
+    ax.grid()
+    rect = ax.patch
+    rect.set_facecolor('gainsboro')
+
+    ax2 = fig.add_subplot(212)
+    ax2.plot(data['Time:'], data['Strain Value:'], color='blue')
+    ax2.set(xlabel='Time', ylabel='Strain Deformation',
+           title='Strain Gauge Reading')
+    ax2.ylim = (0, 1024)
+    ax2.grid()
+    rect = ax2.patch
+    rect.set_facecolor('gainsboro')
+    plt.subplots_adjust(hspace=0.8)
+    plt.show()
+    plt.pause(1)
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(run(loop))
