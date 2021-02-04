@@ -9,10 +9,12 @@ import sys
 from os import path
 import datetime
 import threading
-from datetime import timedelta
+from datetime import datetime, timedelta
 from collections import defaultdict
 import matplotlib
 import warnings
+import RPi.GPIO as GPIO
+import struct
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
@@ -20,70 +22,113 @@ sys.coinit_flags = 2
 from parse_data import plt
 
 
-new_data = defaultdict(lambda: "Not found")
-# Time in milliseconds (!)
-storage_timing = 0
+adc_data = {}
+accel_data = {}
+gyro_data = {}
 figure_shown=0
 lines = []
+DEVICE_NAME = 'GUTRUF LAB v1.BAT_MON'
+LED_PIN = 27
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(LED_PIN, GPIO.OUT)
+pin_flash_cycle_duration = 0
+DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/streamed_data.csv")
+DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
+characteristic_names = {
+     39: 'Temperature:',
+     43: 'Strain:',
+     54: 'Gyro_X:',
+     58: 'Gyro_Y:',
+     62: 'Gyro_Z:',
+     66: 'Accel_X:',
+     70: 'Accel_Y:',
+     74: 'Accel_Z:',
+}
 
-def notification_handler(sender, data):
-    outgoing_data = pd.DataFrame()
-    read_data = pd.DataFrame()
-    global new_data
 
-    if len(new_data.keys()) < 2:
-        new_data["Time:"] = [datetime.datetime.now()]
+def check_data():
+    global adc_data
+    global accel_data
+    global gyro_data
+    store_data = False
+    # Create new dict to populate and convert to data frame
+    packaged_data = {"Time:": [datetime.datetime.now()]}
+
+    # Check if the adc data is ready, if so prepend it. Otherwise use empty strings
+    if len(adc_data.keys()) > 1:
+        packaged_data['Temperature:'] = adc_data.pop('Temperature:')
+        packaged_data['Strain:'] = adc_data.pop('Strain:')
+        store_data = True
+    else:
+        packaged_data['Temperature:'] = ""
+        packaged_data['Strain:'] = ""
+
+    # Make sure both accelerometer and gyro data dicts are populated
+    if (len(accel_data.keys()) > 2) and (len(gyro_data.keys()) > 2):
+        store_data = True
+        # Insert XYZ accelerometer and gyroscope
+        for key in sorted(accel_data.keys()):
+            packaged_data[key] = accel_data.pop(key)[0]
+
+        for key in sorted(gyro_data.keys()):
+            packaged_data[key] = gyro_data.pop(key)[0]
+
+    else:
+        packaged_data['Gyro_X:'] = ""
+        packaged_data['Gyro_Y:'] = ""
+        packaged_data['Gyro_Z:'] = ""
+        packaged_data['Accel_X:'] = ""
+        packaged_data['Accel_Y:'] = ""
+        packaged_data['Accel_Z:'] = ""
+
+    if store_data:
+        print(Datetime.)
+        print(packaged_data)
+        # Create dataframe from packaged data disc and write to CSV file
+        new_df = pd.DataFrame(packaged_data)
+        new_df.to_csv(DATA_FILE_PATH,
+                      index=False,
+                      header=False,
+                      mode='a'  # append data to csv file
+                      )
+
+
+def adc_notification_handler(sender, data):
+    global adc_data
+    global pin_flash_cycle_duration
+    char_name = characteristic_names[sender]
+    if char_name == 'Temperature:':
+        GPIO.output(LED_PIN, 1)
+        pin_flash_cycle_duration += 1
+
     print(sender, int.from_bytes(data, byteorder='little'))
-    # if handle_desc_pairs[sender] == "Temp Value:":
-    #     if new_data[handle_desc_pairs[sender]] == "Not found":
-    #         new_data[handle_desc_pairs[sender]] = [int.from_bytes(data, byteorder='little')]
-    # else:
-    #     if new_data["Temp Value:"] != "Not found":
-    #         new_data[handle_desc_pairs[sender]] = [int.from_bytes(data, byteorder='little')]
+    adc_data[char_name] = [int.from_bytes(data, byteorder='little')]
+    adc_data[char_name] = [int.from_bytes(data, byteorder='little')]
 
-    if len(new_data.keys()) > 2:
-        if datetime.datetime.now() - timedelta(milliseconds=storage_timing) >= new_data["Time:"][0]:
-            new_df = pd.DataFrame(new_data)
-            print(new_df)
+    if char_name == 'Temperature:' and pin_flash_cycle_duration >= 5:
+        GPIO.output(LED_PIN, 0)
+        pin_flash_cycle_duration = 0
 
-            new_df.to_csv('data/streamed_data.csv',
-                                 index=False,
-                                 header=False,
-                                 mode='a'  # append data to csv file
-                                 )
-
-            fig = plt.gcf()
-            ax = fig.gca()
-            ax.clear()
-            data = pd.read_csv('data/streamed_data.csv')
-            data["Time:"] = [datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f") for x in data["Time:"]]
-
-            ax = fig.add_subplot(211)
-            ax.plot(data['Time:'], data['Temp Value:'], color='red')
-            ax.set(xlabel='Time', ylabel='Temperature (Celsius)',
-                   title='Temperature Reading')
-            ax.ylim = (0, 1024)
-            ax.grid()
-            rect = ax.patch
-            rect.set_facecolor('gainsboro')
-
-            ax2 = fig.add_subplot(212)
-            ax2.plot(data['Time:'], data['Strain Value:'], color='blue')
-            ax2.set(xlabel='Time', ylabel='Strain Deformation',
-                    title='Strain Gauge Reading')
-            ax2.ylim = (0, 1024)
-            ax2.grid()
-            rect = ax2.patch
-            rect.set_facecolor('gainsboro')
-            plt.subplots_adjust(hspace=0.8)
-            plt.draw()
-            plt.show()
-            plt.pause(1)
+    if len(adc_data.keys()) > 1:
+        print(adc_data)
+        check_data()
 
 
-            new_data["Time:"] = [datetime.datetime.now()]
-            del new_data["Temp Value:"]
-            del new_data["Strain Value:"]
+def gyro_notification_handler(sender, data):
+    global gyro_data
+    # Convert characteristic id number to corresponding characteristic name
+    char_name = characteristic_names[sender]
+    print(char_name, sender, data, struct.unpack('f', data))
+    gyro_data[char_name] = [struct.unpack('f', data)]
+    check_data()
+
+
+def accel_notification_handler(sender, data):
+    global accel_data
+    char_name = characteristic_names[sender]
+    print(char_name, sender, struct.unpack('f', data))
+    accel_data[char_name] = [struct.unpack('f', data)]
+    check_data()
 
 
 async def run(event_loop):
@@ -95,7 +140,7 @@ async def run(event_loop):
                 devices = await discover(timeout=1)
                 for d in devices:
                     print(d)
-                    if d.name == 'GUTRUF LAB v0.01':
+                    if d.name == DEVICE_NAME:
                         address = d.address
                         print('Device found.')
                 print('----')
@@ -118,56 +163,46 @@ async def run(event_loop):
                         print('Characteristic: {0}'.format(await client.get_all_for_characteristic(char)))
                         # print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
                         # handle_desc_pairs[char.handle] = (char.description + ':')
+                # Temp Read
+                await client.start_notify('15005991-b131-3396-014c-664c9867b917', adc_notification_handler)
+                # Strain Read
+                await client.start_notify('6eb675ab-8bd1-1b9a-7444-621e52ec6823', adc_notification_handler)
+                # Gyro X
+                await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8dee20', gyro_notification_handler)
+                # Gyro Y
+                await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8dbe21', gyro_notification_handler)
+                # Gyro Z
+                await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d2e22', gyro_notification_handler)
+                # Accel X
+                await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d7e23', accel_notification_handler)
+                # Accel Y
+                await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d4e24', accel_notification_handler)
+                # Accel Z
+                await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e25', accel_notification_handler)
 
-                await client.start_notify('15005991-b131-3396-014c-664c9867b917', notification_handler)
-                await client.start_notify('6eb675ab-8bd1-1b9a-7444-621e52ec6823', notification_handler)
                 await disconnected_event.wait()
                 await client.disconnect()
+
                 print("Connected: {0}".format(await client.is_connected()))
+
         except BleakError:
             print("Didn't connect in time. Retrying.")
             pass
 
 
 def create_csv_if_not_exist():
-    if not path.exists(os.getcwd() + '/data/streamed_data.csv'):
-        os.makedirs(os.getcwd() + '/data', exist_ok=True)
+    if not path.exists(DATA_FILE_PATH):
+        os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
         new_file_headers = pd.DataFrame(columns=['Time:', 'Temp Value:', 'Strain Value:'])
-        new_file_headers.to_csv('data/streamed_data.csv', encoding='utf-8', index=False)
+        new_file_headers.to_csv(DATA_FILE_PATH, encoding='utf-8', index=False)
 
 
 if __name__ == "__main__":
     global handle_desc_pairs
 
     handle_desc_pairs = {}
-
+    GPIO.output(LED_PIN, 0)
     create_csv_if_not_exist()
-
-    # fig = plt.figure()
-    # plt.ion()
-    #
-    # data = pd.read_csv('data/streamed_data.csv')
-    # data["Time:"] = [datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f") for x in data["Time:"]]
-    # ax = fig.add_subplot(211)
-    # ax.plot(data['Time:'], data['Temp Value:'], color='red')
-    # ax.set(xlabel='Time', ylabel='Temperature (Celsius)',
-    #        title='Temperature Reading')
-    # ax.ylim = (0, 1024)
-    # ax.grid()
-    # rect = ax.patch
-    # rect.set_facecolor('gainsboro')
-    #
-    # ax2 = fig.add_subplot(212)
-    # ax2.plot(data['Time:'], data['Strain Value:'], color='blue')
-    # ax2.set(xlabel='Time', ylabel='Strain Deformation',
-    #        title='Strain Gauge Reading')
-    # ax2.ylim = (0, 1024)
-    # ax2.grid()
-    # rect = ax2.patch
-    # rect.set_facecolor('gainsboro')
-    # plt.subplots_adjust(hspace=0.8)
-    # plt.show()
-    # plt.pause(1)
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(run(loop))
