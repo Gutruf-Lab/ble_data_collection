@@ -52,7 +52,7 @@ def check_data():
     global gyro_data
     store_data = False
     # Create new dict to populate and convert to data frame
-    packaged_data = {"Time:": [datetime.datetime.now()]}
+    packaged_data = {"Time:": [datetime.now()]}
 
     # Check if the adc data is ready, if so prepend it. Otherwise use empty strings
     if len(adc_data.keys()) > 1:
@@ -82,7 +82,6 @@ def check_data():
         packaged_data['Accel_Z:'] = ""
 
     if store_data:
-        print(Datetime.)
         print(packaged_data)
         # Create dataframe from packaged data disc and write to CSV file
         new_df = pd.DataFrame(packaged_data)
