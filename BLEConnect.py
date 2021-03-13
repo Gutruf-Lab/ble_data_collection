@@ -1,18 +1,11 @@
-from time import sleep
-
-from bleak import BleakClient, discover
-from bleak.exc import BleakDotNetTaskError, BleakError
+from bleak import BleakClient
+from bleak.exc import BleakError
 import asyncio
 import pandas as pd
 import os
 import sys
 from os import path
 import time
-import datetime
-import threading
-from datetime import datetime, timedelta
-from collections import defaultdict
-import matplotlib
 import warnings
 # import RPi.GPIO as GPIO
 import struct
@@ -20,14 +13,9 @@ from struct import unpack
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
-
-from parse_data import plt
-
-
 adc_data = {}
 accel_data = {}
 gyro_data = {}
-figure_shown=0
 lines = []
 DEVICE_NAME = 'GUTRUF LAB v3.BAT_MON'
 LED_PIN = 27
@@ -37,7 +25,7 @@ BMI2_GYR_RANGE_2000 = 0
 # GPIO.setmode(GPIO.BCM)
 # GPIO.setup(LED_PIN, GPIO.OUT)
 pin_flash_cycle_duration = 0
-DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/streamed_data.csv")
+DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 characteristic_names = {
      39: 'Temperature:',
@@ -51,8 +39,10 @@ characteristic_names = {
      86: 'Battery:'
 }
 
+addresses = ["80:EA:CA:70:00:03", "80:EA:CA:70:00:04"]
 
-def check_data():
+
+def store_data_as_csv():
     global adc_data
     global accel_data
     global gyro_data
@@ -90,25 +80,26 @@ def check_data():
         packaged_data['Accel_Z:'] = ""
 
     if store_data:
-        print(packaged_data)
+        print(address)
         # Create dataframe from packaged data disc and write to CSV file
+        output_file_name = DATA_FILE_PATH + address.replace(":", "_") + ".csv"
         new_df = pd.DataFrame(packaged_data)
-        new_df.to_csv(DATA_FILE_PATH,
+        new_df.to_csv(output_file_name,
                       index=False,
                       header=False,
                       mode='a'  # append data to csv file
                       )
 
 
-def adc_notification_handler(sender, data):
+def adc_notification_handler(sender, data, dev_address):
     global adc_data
     global pin_flash_cycle_duration
     char_name = characteristic_names[sender]
     # if char_name == 'Temperature:':
     #     GPIO.output(LED_PIN, 1)
     #     pin_flash_cycle_duration += 1
-
-    print(sender, int.from_bytes(data, byteorder='little'))
+    print("ADC Callback:", dev_address)
+    # print(sender, int.from_bytes(data, byteorder='little'))
     adc_data[char_name] = [int.from_bytes(data, byteorder='little')]
     adc_data[char_name] = [int.from_bytes(data, byteorder='little')]
 
@@ -117,25 +108,23 @@ def adc_notification_handler(sender, data):
     #     pin_flash_cycle_duration = 0
 
     if len(adc_data.keys()) > 2:
-        print(adc_data)
-        check_data()
+        # print(adc_data)
+        store_data_as_csv()
 
 
 def gyro_notification_handler(sender, data):
     global gyro_data
     # Convert characteristic id number to corresponding characteristic name
     char_name = characteristic_names[sender]
-    print(char_name, sender, data, struct.unpack('f', data))
     gyro_data[char_name] = [struct.unpack('f', data)]
-    check_data()
+    store_data_as_csv()
 
 
 def accel_notification_handler(sender, data):
     global accel_data
     char_name = characteristic_names[sender]
-    print(char_name, sender, struct.unpack('f', data))
     accel_data[char_name] = [struct.unpack('f', data)]
-    check_data()
+    store_data_as_csv()
 
 
 def raw_imu_notification_handler(sender, data):
@@ -157,34 +146,21 @@ def raw_imu_notification_handler(sender, data):
     gyro_data['Gyro_X:'] = list_of_shorts[3]
     gyro_data['Gyro_Y:'] = list_of_shorts[4]
     gyro_data['Gyro_Z:'] = list_of_shorts[5]
-    check_data()
+    store_data_as_csv()
 
 
 def battery_notification_handler(sender, data):
     global adc_data
     print(sender, int.from_bytes(data, byteorder='little'))
-    # print('Battery: [', sender, ']: ', int.from_bytes(data, byteorder='little'))
     adc_data['Battery:'] = int.from_bytes(data, byteorder='little')
     if len(adc_data.keys()) > 2:
-        check_data()
+        store_data_as_csv()
 
 
-async def run(event_loop):
-
+async def connect_to_device(event_loop, address):
     while True:
-        address = ''
         try:
-            while address == '':
-                devices = await discover(timeout=2)
-                for d in devices:
-                    if d.name != "Unknown":
-                        print(d)
-
-                    if d.name == DEVICE_NAME:
-                        address = d.address
-                        print('Device found.')
-                print('----')
-
+            print("Attempting connection to " + address + "...")
             async with BleakClient(address, loop=event_loop) as client:
                 x = await client.is_connected()
 
@@ -200,28 +176,15 @@ async def run(event_loop):
                 services = await client.get_services()
                 for s in services:
                     for char in s.characteristics:
-                        print('Characteristic: {0}'.format(await client.get_all_for_characteristic(char)))
-                        # print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
-                        # handle_desc_pairs[char.handle] = (char.description + ':')
+                        # print('Characteristic: {0}'.format(await client.get_all_for_characteristic(char)))
+                        print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
+                        handle_desc_pairs[char.handle] = (char.description + ':')
                 # Temp Read
-                await client.start_notify('15005991-b131-3396-014c-664c9867b917', adc_notification_handler)
+                await client.start_notify('15005991-b131-3396-014c-664c9867b917', adc_notification_handler(dev_address=address))
                 # Strain Read
-                await client.start_notify('6eb675ab-8bd1-1b9a-7444-621e52ec6823', adc_notification_handler)
-                # # Gyro X
-                # await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8dee20', gyro_notification_handler)
-                # # Gyro Y
-                # await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8dbe21', gyro_notification_handler)
-                # # Gyro Z
-                # await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d2e22', gyro_notification_handler)
-                # # Accel X
-                # await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d7e23', accel_notification_handler)
-                # # Accel Y
-                # await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d4e24', accel_notification_handler)
-                # # Accel Z
-                # await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e25', accel_notification_handler)
-
+                await client.start_notify('6eb675ab-8bd1-1b9a-7444-621e52ec6823', adc_notification_handler(dev_address=address))
                 # Battery Monitoring
-                await client.start_notify('1587686a-53dc-25b3-0c4a-f0e10c8dee20', adc_notification_handler)
+                await client.start_notify('1587686a-53dc-25b3-0c4a-f0e10c8dee20', adc_notification_handler(dev_address=address))
                 # Raw IMU Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', raw_imu_notification_handler)
 
@@ -232,15 +195,15 @@ async def run(event_loop):
 
         except BleakError as e:
             print(e)
-            # print("Didn't connect in time. Retrying.")
 
 
-def create_csv_if_not_exist():
-    if not path.exists(DATA_FILE_PATH):
+def create_csv_if_not_exist(address):
+    output_file_name = DATA_FILE_PATH + address.replace(":", "_") + ".csv"
+    if not path.exists(output_file_name):
         os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
         new_file_headers = pd.DataFrame(columns=['Time:', 'Temperature:', 'Strain:', 'Battery:',
                                                  "Accel_X:", "Accel_Y:", "Accel_Z:", "Gyro_X:", "Gyro_Y:", "Gyro_Z:"])
-        new_file_headers.to_csv(DATA_FILE_PATH, encoding='utf-8', index=False)
+        new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
 
 
 if __name__ == "__main__":
@@ -248,7 +211,14 @@ if __name__ == "__main__":
 
     handle_desc_pairs = {}
     # GPIO.output(LED_PIN, 0)
-    create_csv_if_not_exist()
+    for address in addresses:
+        create_csv_if_not_exist(address)
+
     # error catch`
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(run(loop))
+
+    tasks = asyncio.gather(*(connect_to_device(loop, address) for address in addresses))
+    try:
+        loop.run_until_complete(tasks)
+    except TimeoutError as e:
+        print(e)
