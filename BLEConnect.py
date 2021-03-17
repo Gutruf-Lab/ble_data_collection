@@ -1,4 +1,4 @@
-from bleak import BleakClient
+from bleak import BleakClient, discover
 from bleak.exc import BleakError
 import asyncio
 import pandas as pd
@@ -39,7 +39,8 @@ characteristic_names = {
      86: 'Battery:'
 }
 
-addresses = ["80:EA:CA:70:00:03", "80:EA:CA:70:00:04"]
+# addresses = ["80:EA:CA:70:00:03", "80:EA:CA:70:00:04"]
+addresses = ["80:EA:CA:70:00:04"]
 
 
 def store_data_as_csv():
@@ -80,7 +81,7 @@ def store_data_as_csv():
         packaged_data['Accel_Z:'] = ""
 
     if store_data:
-        print(address)
+        print(packaged_data)
         # Create dataframe from packaged data disc and write to CSV file
         output_file_name = DATA_FILE_PATH + address.replace(":", "_") + ".csv"
         new_df = pd.DataFrame(packaged_data)
@@ -160,7 +161,16 @@ def battery_notification_handler(sender, data):
 async def connect_to_device(event_loop, address):
     while True:
         try:
-            print("Attempting connection to " + address + "...")
+            devices = await discover(timeout=1)
+            for d in devices:
+                print(d)
+                if d.address == address:
+                    print('****')
+                    print('Device found.')
+                    print("Attempting connection to " + address + "...")
+                    print('****')
+            print('----')
+
             async with BleakClient(address, loop=event_loop) as client:
                 x = await client.is_connected()
 
@@ -180,11 +190,11 @@ async def connect_to_device(event_loop, address):
                         print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
                         handle_desc_pairs[char.handle] = (char.description + ':')
                 # Temp Read
-                await client.start_notify('15005991-b131-3396-014c-664c9867b917', adc_notification_handler(dev_address=address))
+                # await client.start_notify('15005991-b131-3396-014c-664c9867b917', adc_notification_handler(dev_address=address))
                 # Strain Read
-                await client.start_notify('6eb675ab-8bd1-1b9a-7444-621e52ec6823', adc_notification_handler(dev_address=address))
+                # await client.start_notify('6eb675ab-8bd1-1b9a-7444-621e52ec6823', adc_notification_handler(dev_address=address))
                 # Battery Monitoring
-                await client.start_notify('1587686a-53dc-25b3-0c4a-f0e10c8dee20', adc_notification_handler(dev_address=address))
+                # await client.start_notify('1587686a-53dc-25b3-0c4a-f0e10c8dee20', adc_notification_handler(dev_address=address))
                 # Raw IMU Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', raw_imu_notification_handler)
 
@@ -195,6 +205,7 @@ async def connect_to_device(event_loop, address):
 
         except BleakError as e:
             print(e)
+            print('----')
 
 
 def create_csv_if_not_exist(address):
