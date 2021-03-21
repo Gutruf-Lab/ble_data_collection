@@ -17,7 +17,7 @@ adc_data = {}
 accel_data = {}
 gyro_data = {}
 lines = []
-DEVICE_NAME = 'GUTRUF LAB v3.BAT_MON'
+DEVICE_NAME = 'GUTRUF LAB - Right Arm'
 LED_PIN = 27
 GRAVITY_EARTH = 9.80665
 BMI2_GYR_RANGE_2000 = 0
@@ -92,14 +92,13 @@ def store_data_as_csv():
                       )
 
 
-def adc_notification_handler(sender, data, dev_address):
+def adc_notification_handler(sender, data):
     global adc_data
     global pin_flash_cycle_duration
     char_name = characteristic_names[sender]
     # if char_name == 'Temperature:':
     #     GPIO.output(LED_PIN, 1)
     #     pin_flash_cycle_duration += 1
-    print("ADC Callback:", dev_address)
     # print(sender, int.from_bytes(data, byteorder='little'))
     adc_data[char_name] = [int.from_bytes(data, byteorder='little')]
     adc_data[char_name] = [int.from_bytes(data, byteorder='little')]
@@ -173,7 +172,7 @@ async def connect_to_device(event_loop, address):
 
             async with BleakClient(address, loop=event_loop) as client:
                 x = await client.is_connected()
-
+                print('Connected to device ' + address)
                 disconnected_event = asyncio.Event()
 
                 def disconnect_callback(client):
