@@ -240,6 +240,8 @@ if __name__ == "__main__":
     for address in addresses:
         create_csv_if_not_exist(address)
 
+    print(address_hash_table)
+
     # error catch`
     loop = asyncio.get_event_loop()
 
