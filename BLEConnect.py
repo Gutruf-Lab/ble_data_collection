@@ -39,8 +39,24 @@ characteristic_names = {
      86: 'Battery:'
 }
 
-# addresses = ["80:EA:CA:70:00:03", "80:EA:CA:70:00:04"]
-addresses = ["80:EA:CA:70:00:04"]
+addresses = ["80:EA:CA:70:00:03", "80:EA:CA:70:00:04"]
+# addresses = ["80:EA:CA:70:00:04"]
+address_hash_table = {}
+
+
+def hash_addresses():
+    global addresses
+    for address in addresses:
+        address_byte_array = bytearray.fromhex(address.replace(":", ""))
+        address_byte_array.reverse()
+
+        # Initialize with some random large-ish prime
+        hashed_address = 5381
+        for b in address_byte_array:
+            hashed_address = ((hashed_address << 5) + hashed_address) + b
+
+        print(hashed_address)
+        address_hash_table[address] = hashed_address
 
 
 def store_data_as_csv():
@@ -100,7 +116,6 @@ def adc_notification_handler(sender, data):
     #     GPIO.output(LED_PIN, 1)
     #     pin_flash_cycle_duration += 1
     # print(sender, int.from_bytes(data, byteorder='little'))
-    adc_data[char_name] = [int.from_bytes(data, byteorder='little')]
     adc_data[char_name] = [int.from_bytes(data, byteorder='little')]
 
     # if char_name == 'Temperature:' and pin_flash_cycle_duration >= 5:
@@ -219,16 +234,20 @@ def create_csv_if_not_exist(address):
 if __name__ == "__main__":
     global handle_desc_pairs
 
+    hash_addresses()
+
     handle_desc_pairs = {}
     # GPIO.output(LED_PIN, 0)
     for address in addresses:
         create_csv_if_not_exist(address)
 
+    print(address_hash_table)
+
     # error catch`
     loop = asyncio.get_event_loop()
 
-    tasks = asyncio.gather(*(connect_to_device(loop, address) for address in addresses))
     try:
+        tasks = asyncio.gather(*(connect_to_device(loop, address) for address in addresses))
         loop.run_until_complete(tasks)
     except TimeoutError as e:
         print(e)
