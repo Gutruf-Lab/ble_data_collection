@@ -1,3 +1,5 @@
+import ctypes
+
 from bleak import BleakClient, discover
 from bleak.exc import BleakError
 import asyncio
@@ -39,27 +41,34 @@ characteristic_names = {
      86: 'Battery:'
 }
 
-addresses = ["80:EA:CA:70:00:03", "80:EA:CA:70:00:04"]
-# addresses = ["80:EA:CA:70:00:04"]
+addresses = ["80:EA:CA:70:00:05", "80:EA:CA:70:00:04"]
+# addresses = ["80:EA:CA:70:00:05"]
 address_hash_table = {}
+device_datas = {}
 
 
 def hash_addresses():
     global addresses
-    for address in addresses:
-        address_byte_array = bytearray.fromhex(address.replace(":", ""))
+    for device_address in addresses:
+        address_byte_array = bytearray.fromhex(device_address.replace(":", ""))
         address_byte_array.reverse()
-
         # Initialize with some random large-ish prime
         hashed_address = 5381
+        # print(hex(hashed_address))
+        # print("")
         for b in address_byte_array:
             hashed_address = ((hashed_address << 5) + hashed_address) + b
+            hashed_address &= 0xFFFF
+            # print(hex(hashed_address))
+            # print(" ::", hex(b))
+            # print(hashed_address)
+        # print(hex(hashed_address))
+        device_datas[device_address] = {}
+        device_datas[device_address]["hashed_address"] = hashed_address
 
-        print(hashed_address)
-        address_hash_table[address] = hashed_address
 
-
-def store_data_as_csv():
+# Key data storage
+def store_data_as_csv(origin_address=None):
     global adc_data
     global accel_data
     global gyro_data
@@ -97,7 +106,7 @@ def store_data_as_csv():
         packaged_data['Accel_Z:'] = ""
 
     if store_data:
-        print(packaged_data)
+        print(origin_address, packaged_data)
         # Create dataframe from packaged data disc and write to CSV file
         output_file_name = DATA_FILE_PATH + address.replace(":", "_") + ".csv"
         new_df = pd.DataFrame(packaged_data)
@@ -161,7 +170,9 @@ def raw_imu_notification_handler(sender, data):
     gyro_data['Gyro_X:'] = list_of_shorts[3]
     gyro_data['Gyro_Y:'] = list_of_shorts[4]
     gyro_data['Gyro_Z:'] = list_of_shorts[5]
-    store_data_as_csv()
+    # Convert int16_t to uint16_t
+    list_of_shorts[6] = (list_of_shorts[6] + 2**16)
+    store_data_as_csv(origin_address=list_of_shorts[6])
 
 
 def battery_notification_handler(sender, data):
@@ -175,7 +186,7 @@ def battery_notification_handler(sender, data):
 async def connect_to_device(event_loop, address):
     while True:
         try:
-            devices = await discover(timeout=1)
+            devices = await discover(timeout=2)
             for d in devices:
                 print(d)
                 if d.address == address:
@@ -202,13 +213,15 @@ async def connect_to_device(event_loop, address):
                     for char in s.characteristics:
                         # print('Characteristic: {0}'.format(await client.get_all_for_characteristic(char)))
                         print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
-                        handle_desc_pairs[char.handle] = (char.description + ':')
+                        characteristic_names[char.handle] = (char.description + ':')
                 # Temp Read
-                # await client.start_notify('15005991-b131-3396-014c-664c9867b917', adc_notification_handler(dev_address=address))
+
+                # await client.start_notify('15005991-b131-3396-014c-664c9867b917', adc_notification_handler)
                 # Strain Read
-                # await client.start_notify('6eb675ab-8bd1-1b9a-7444-621e52ec6823', adc_notification_handler(dev_address=address))
+                # await client.start_notify('6eb675ab-8bd1-1b9a-7444-621e52ec6823', adc_notification_handler)
                 # Battery Monitoring
-                # await client.start_notify('1587686a-53dc-25b3-0c4a-f0e10c8dee20', adc_notification_handler(dev_address=address))
+                # await client.start_notify('1587686a-53dc-25b3-0c4a-f0e10c8dee20', adc_notification_handler)
+
                 # Raw IMU Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', raw_imu_notification_handler)
 
@@ -216,7 +229,9 @@ async def connect_to_device(event_loop, address):
                 await client.disconnect()
 
                 print("Connected: {0}".format(await client.is_connected()))
-
+        except asyncio.exceptions.TimeoutError as e:
+            print(e)
+            print("----")
         except BleakError as e:
             print(e)
             print('----')
@@ -241,7 +256,7 @@ if __name__ == "__main__":
         create_csv_if_not_exist(address)
 
     print(address_hash_table)
-
+    print(device_datas)
     # error catch`
     loop = asyncio.get_event_loop()
 
