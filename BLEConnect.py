@@ -41,10 +41,13 @@ characteristic_names = {
      86: 'Battery:'
 }
 
-addresses = ["80:EA:CA:70:00:05", "80:EA:CA:70:00:04"]
+if os.name == 'nt':
+    addresses = ["80:EA:CA:70:00:05", "80:EA:CA:70:00:04"]
+else:
+    addresses = []
+
 # addresses = ["80:EA:CA:70:00:05"]
-address_hash_table = {}
-device_datas = {}
+device_data = {}
 
 
 def hash_addresses():
@@ -63,12 +66,12 @@ def hash_addresses():
             # print(" ::", hex(b))
             # print(hashed_address)
         # print(hex(hashed_address))
-        device_datas[device_address] = {}
-        device_datas[device_address]["hashed_address"] = hashed_address
+        device_data[device_address] = {}
+        device_data[device_address]["hashed_address"] = hashed_address
 
 
 # Key data storage
-def store_data_as_csv(origin_address=None):
+def store_data_as_csv():
     global adc_data
     global accel_data
     global gyro_data
@@ -106,7 +109,7 @@ def store_data_as_csv(origin_address=None):
         packaged_data['Accel_Z:'] = ""
 
     if store_data:
-        print(origin_address, packaged_data)
+        print(packaged_data)
         # Create dataframe from packaged data disc and write to CSV file
         output_file_name = DATA_FILE_PATH + address.replace(":", "_") + ".csv"
         new_df = pd.DataFrame(packaged_data)
@@ -153,26 +156,31 @@ def accel_notification_handler(sender, data):
 
 def raw_imu_notification_handler(sender, data):
     # print("IMU: [", sender, "]:", data)
-    global accel_data
-    global gyro_data
+
+    # Convert raw bytearray into list of processed shorts and then package it for storage
+    # bytearray structure is [Accel X, Accel Y, Accel Z, Gyro X, Gyro Y, Gyro Z, Address Hash]
     list_of_shorts = list(unpack('h' * (len(data) // 2), data))
-    # print(list_of_shorts)
     for i in range(0, 3):
         list_of_shorts[i] = (9.80665 * list_of_shorts[i] * 2) / (float((1 << 16) / 2.0))
-
     for i in range(3, 6):
         list_of_shorts[i] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[i]
 
-    # print(list_of_shorts)
-    accel_data['Accel_X:'] = list_of_shorts[0]
-    accel_data['Accel_Y:'] = list_of_shorts[1]
-    accel_data['Accel_Z:'] = list_of_shorts[2]
-    gyro_data['Gyro_X:'] = list_of_shorts[3]
-    gyro_data['Gyro_Y:'] = list_of_shorts[4]
-    gyro_data['Gyro_Z:'] = list_of_shorts[5]
+    packaged_data = {"Time:": [time.time()],
+                     'Accel_X:': list_of_shorts[0],
+                     'Accel_Y:': list_of_shorts[1],
+                     'Accel_Z:': list_of_shorts[2],
+                     'Gyro_X:': list_of_shorts[3],
+                     'Gyro_Y:': list_of_shorts[4],
+                     'Gyro_Z:': list_of_shorts[5]}
+
     # Convert int16_t to uint16_t
-    list_of_shorts[6] = (list_of_shorts[6] + 2**16)
-    store_data_as_csv(origin_address=list_of_shorts[6])
+    list_of_shorts[6] = list_of_shorts[6] + 2**16
+    # Find next device to have this address hash and return that address
+    device_address = next((dev for dev in device_data if device_data[dev]['hashed_address'] == list_of_shorts[6]), None)
+
+    output_file_name = DATA_FILE_PATH + device_address.replace(":", "_") + ".csv"
+    new_df = pd.DataFrame(packaged_data)
+    new_df.to_csv(output_file_name, index=False, header=False, mode='a')
 
 
 def battery_notification_handler(sender, data):
@@ -255,8 +263,7 @@ if __name__ == "__main__":
     for address in addresses:
         create_csv_if_not_exist(address)
 
-    print(address_hash_table)
-    print(device_datas)
+    print(device_data)
     # error catch`
     loop = asyncio.get_event_loop()
 
