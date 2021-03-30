@@ -19,6 +19,7 @@ adc_data = {}
 accel_data = {}
 gyro_data = {}
 lines = []
+connected_devices = 0
 DEVICE_NAME = 'GUTRUF LAB - Right Arm'
 LED_PIN = 27
 GRAVITY_EARTH = 9.80665
@@ -47,7 +48,7 @@ else:
     addresses = []
 
 # addresses = ["80:EA:CA:70:00:05"]
-device_data = {}
+address_hashes = {}
 
 
 def hash_addresses():
@@ -66,8 +67,7 @@ def hash_addresses():
             # print(" ::", hex(b))
             # print(hashed_address)
         # print(hex(hashed_address))
-        device_data[device_address] = {}
-        device_data[device_address]["hashed_address"] = hashed_address
+        address_hashes[device_address] = hashed_address
 
 
 # Key data storage
@@ -155,32 +155,48 @@ def accel_notification_handler(sender, data):
 
 
 def raw_imu_notification_handler(sender, data):
-    # print("IMU: [", sender, "]:", data)
+    global connected_devices
+    if connected_devices == len(address_hashes):
+        # print("IMU: [", sender, "]:", data)
 
-    # Convert raw bytearray into list of processed shorts and then package it for storage
-    # bytearray structure is [Accel X, Accel Y, Accel Z, Gyro X, Gyro Y, Gyro Z, Address Hash]
-    list_of_shorts = list(unpack('h' * (len(data) // 2), data))
-    for i in range(0, 3):
-        list_of_shorts[i] = (9.80665 * list_of_shorts[i] * 2) / (float((1 << 16) / 2.0))
-    for i in range(3, 6):
-        list_of_shorts[i] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[i]
+        # Convert raw bytearray into list of processed shorts and then package it for storage
+        # bytearray structure is [Accel X, Accel Y, Accel Z, Gyro X, Gyro Y, Gyro Z, Address Hash]
+        list_of_shorts = list(unpack('h' * (len(data) // 2), data))
+        for i in range(0, 3):
+            list_of_shorts[i] = (9.80665 * list_of_shorts[i] * 2) / (float((1 << 16) / 2.0))
+        for i in range(3, 6):
+            list_of_shorts[i] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[i]
 
-    packaged_data = {"Time:": [time.time()],
-                     'Accel_X:': list_of_shorts[0],
-                     'Accel_Y:': list_of_shorts[1],
-                     'Accel_Z:': list_of_shorts[2],
-                     'Gyro_X:': list_of_shorts[3],
-                     'Gyro_Y:': list_of_shorts[4],
-                     'Gyro_Z:': list_of_shorts[5]}
+        packaged_data = {"Time:": [time.time()],
+                         "Temperature:": '',
+                         "Strain:": '',
+                         "Battery:": '',
+                         'Accel_X:': list_of_shorts[0],
+                         'Accel_Y:': list_of_shorts[1],
+                         'Accel_Z:': list_of_shorts[2],
+                         'Gyro_X:': list_of_shorts[3],
+                         'Gyro_Y:': list_of_shorts[4],
+                         'Gyro_Z:': list_of_shorts[5]}
 
-    # Convert int16_t to uint16_t
-    list_of_shorts[6] = list_of_shorts[6] + 2**16
-    # Find next device to have this address hash and return that address
-    device_address = next((dev for dev in device_data if device_data[dev]['hashed_address'] == list_of_shorts[6]), None)
+        # Convert int16_t to uint16_t
+        list_of_shorts[6] = list_of_shorts[6] + 2**16
+        # Find next device to have this address hash and return that address
+        print(address_hashes)
+        print(list_of_shorts[6])
+        device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[6]), None)
 
-    output_file_name = DATA_FILE_PATH + device_address.replace(":", "_") + ".csv"
-    new_df = pd.DataFrame(packaged_data)
-    new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+        print("[ %x ]" % list_of_shorts[6], end=" ")
+
+        # for val in list_of_shorts:
+        #     print("%.2f" % val, end=" ")
+        # print("]", end=" |||| ")
+
+
+        output_file_name = DATA_FILE_PATH + device_address.replace(":", "_") + ".csv"
+        new_df = pd.DataFrame(packaged_data)
+        new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+    else:
+        pass
 
 
 def battery_notification_handler(sender, data):
@@ -192,11 +208,12 @@ def battery_notification_handler(sender, data):
 
 
 async def connect_to_device(event_loop, address):
+    global connected_devices
     while True:
         try:
             devices = await discover(timeout=2)
             for d in devices:
-                print(d)
+                # print(d)
                 if d.address == address:
                     print('****')
                     print('Device found.')
@@ -206,11 +223,15 @@ async def connect_to_device(event_loop, address):
 
             async with BleakClient(address, loop=event_loop) as client:
                 x = await client.is_connected()
-                print('Connected to device ' + address)
+                connected_devices += 1
+
+                name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
+                print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
                 disconnected_event = asyncio.Event()
 
                 def disconnect_callback(client):
                     print("Disconnected callback called!")
+                    connected_devices -= 1
                     loop.call_soon_threadsafe(disconnected_event.set)
                     print("Connection lost. Retrying...")
 
@@ -220,7 +241,7 @@ async def connect_to_device(event_loop, address):
                 for s in services:
                     for char in s.characteristics:
                         # print('Characteristic: {0}'.format(await client.get_all_for_characteristic(char)))
-                        print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
+                        # print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
                         characteristic_names[char.handle] = (char.description + ':')
                 # Temp Read
 
@@ -256,18 +277,18 @@ def create_csv_if_not_exist(filename_address):
 
 if __name__ == "__main__":
     global handle_desc_pairs
-
+    connected_devices = 0
     hash_addresses()
 
     # GPIO.output(LED_PIN, 0)
     for address in addresses:
         create_csv_if_not_exist(address)
 
-    print(device_data)
+    print(address_hashes)
     # error catch`
-    loop = asyncio.get_event_loop()
 
     try:
+        loop = asyncio.get_event_loop()
         tasks = asyncio.gather(*(connect_to_device(loop, address) for address in addresses))
         loop.run_until_complete(tasks)
     except TimeoutError as e:
