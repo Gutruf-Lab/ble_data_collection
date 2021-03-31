@@ -219,7 +219,7 @@ async def connect_to_device(event_loop, address):
                     print('Device found.')
                     print("Attempting connection to " + address + "...")
                     print('****')
-            print('----')
+            # print('----')
 
             async with BleakClient(address, loop=event_loop) as client:
                 x = await client.is_connected()
@@ -230,6 +230,7 @@ async def connect_to_device(event_loop, address):
                 disconnected_event = asyncio.Event()
 
                 def disconnect_callback(client):
+                    global connected_devices
                     print("Disconnected callback called!")
                     connected_devices -= 1
                     loop.call_soon_threadsafe(disconnected_event.set)
