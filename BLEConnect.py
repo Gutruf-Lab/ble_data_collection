@@ -43,7 +43,8 @@ characteristic_names = {
 }
 
 if os.name == 'nt':
-    addresses = ["80:EA:CA:70:00:05", "80:EA:CA:70:00:04"]
+    # addresses = ["80:EA:CA:70:00:05", "80:EA:CA:70:00:04"]
+    addresses = ["80:EA:CA:70:00:04"]
 else:
     addresses = []
 
@@ -157,7 +158,7 @@ def accel_notification_handler(sender, data):
 def raw_imu_notification_handler(sender, data):
     global connected_devices
     if connected_devices == len(address_hashes):
-        # print("IMU: [", sender, "]:", data)
+        print("IMU: [", sender, "]:", data)
 
         # Convert raw bytearray into list of processed shorts and then package it for storage
         # bytearray structure is [Accel X, Accel Y, Accel Z, Gyro X, Gyro Y, Gyro Z, Address Hash]
@@ -181,16 +182,19 @@ def raw_imu_notification_handler(sender, data):
         # Convert int16_t to uint16_t
         list_of_shorts[6] = list_of_shorts[6] + 2**16
         # Find next device to have this address hash and return that address
-        print(address_hashes)
-        print(list_of_shorts[6])
+        # print(address_hashes)
+        # print(list_of_shorts[6])
+        list_of_shorts[7] = int.from_bytes((data[-2::] + data[-4:-2:]), "little")
+        print(list_of_shorts[7])
+        # print(list_of_shorts)
         device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[6]), None)
 
-        print("[ %x ]" % list_of_shorts[6], end=" ")
+        packaged_data["Device Timestamp:"] = list_of_shorts[7]
+        # print("[ %x ]" % list_of_shorts[6], end=" ")
 
         # for val in list_of_shorts:
         #     print("%.2f" % val, end=" ")
         # print("]", end=" |||| ")
-
 
         output_file_name = DATA_FILE_PATH + device_address.replace(":", "_") + ".csv"
         new_df = pd.DataFrame(packaged_data)
@@ -272,7 +276,8 @@ def create_csv_if_not_exist(filename_address):
     if not path.exists(output_file_name):
         os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
         new_file_headers = pd.DataFrame(columns=['Time:', 'Temperature:', 'Strain:', 'Battery:',
-                                                 "Accel_X:", "Accel_Y:", "Accel_Z:", "Gyro_X:", "Gyro_Y:", "Gyro_Z:"])
+                                                 "Accel_X:", "Accel_Y:", "Accel_Z:", "Gyro_X:",
+                                                 "Gyro_Y:", "Gyro_Z:", "Device Timestamp:"])
         new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
 
 
