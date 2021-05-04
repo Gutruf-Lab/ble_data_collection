@@ -44,7 +44,8 @@ characteristic_names = {
 
 if os.name == 'nt':
     # addresses = ["80:EA:CA:70:00:05", "80:EA:CA:70:00:04"]
-    addresses = ["80:EA:CA:70:00:04"]
+    # addresses = ["80:EA:CA:70:00:04"]
+    addresses = ["80:EA:CA:70:00:05"]
 else:
     addresses = []
 
