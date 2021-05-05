@@ -156,46 +156,37 @@ def accel_notification_handler(sender, data):
     store_data_as_csv()
 
 
-def raw_imu_notification_handler(sender, data):
+def gait_notification_handler(sender, data):
     global connected_devices
     if connected_devices == len(address_hashes):
         print("IMU: [", sender, "]:", data)
 
         # Convert raw bytearray into list of processed shorts and then package it for storage
-        # bytearray structure is [Accel X, Accel Y, Accel Z, Gyro X, Gyro Y, Gyro Z, Address Hash]
+        # bytearray structure is [Accel Z, Gyro Z, Address Hash, Timestamp]
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
-        for i in range(0, 3):
-            list_of_shorts[i] = (9.80665 * list_of_shorts[i] * 2) / (float((1 << 16) / 2.0))
-        for i in range(3, 6):
-            list_of_shorts[i] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[i]
+        list_of_shorts[0] = (9.80665 * list_of_shorts[0] * 2) / (float((1 << 16) / 2.0))
+        list_of_shorts[1] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[1]
 
         packaged_data = {"Time:": [time.time()],
                          "Temperature:": '',
                          "Strain:": '',
                          "Battery:": '',
-                         'Accel_X:': list_of_shorts[0],
-                         'Accel_Y:': list_of_shorts[1],
-                         'Accel_Z:': list_of_shorts[2],
-                         'Gyro_X:': list_of_shorts[3],
-                         'Gyro_Y:': list_of_shorts[4],
-                         'Gyro_Z:': list_of_shorts[5]}
+                         'Accel_X:': '',
+                         'Accel_Y:': '',
+                         'Accel_Z:': list_of_shorts[0],
+                         'Gyro_X:': '',
+                         'Gyro_Y:': '',
+                         'Gyro_Z:': list_of_shorts[1],
+                         'Device Timestamp:': ''}
 
         # Convert int16_t to uint16_t
-        list_of_shorts[6] = list_of_shorts[6] + 2**16
-        # Find next device to have this address hash and return that address
-        # print(address_hashes)
-        # print(list_of_shorts[6])
-        list_of_shorts[7] = int.from_bytes((data[-2::] + data[-4:-2:]), "little")
-        print(list_of_shorts[7])
-        # print(list_of_shorts)
-        device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[6]), None)
+        list_of_shorts[2] = list_of_shorts[2] + 2**16
 
-        packaged_data["Device Timestamp:"] = list_of_shorts[7]
-        # print("[ %x ]" % list_of_shorts[6], end=" ")
+        device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[2]), None)
 
-        # for val in list_of_shorts:
-        #     print("%.2f" % val, end=" ")
-        # print("]", end=" |||| ")
+        list_of_shorts[3] = int.from_bytes((data[-2::] + data[-4:-2:]), "little")
+        print(list_of_shorts)
+        packaged_data["Device Timestamp:"] = list_of_shorts[3]
 
         output_file_name = DATA_FILE_PATH + device_address.replace(":", "_") + ".csv"
         new_df = pd.DataFrame(packaged_data)
@@ -258,7 +249,7 @@ async def connect_to_device(event_loop, address):
                 # await client.start_notify('1587686a-53dc-25b3-0c4a-f0e10c8dee20', adc_notification_handler)
 
                 # Raw IMU Data
-                await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', raw_imu_notification_handler)
+                await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', gait_notification_handler)
 
                 await disconnected_event.wait()
                 await client.disconnect()
