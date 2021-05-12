@@ -160,37 +160,40 @@ def gait_notification_handler(sender, data):
     global connected_devices
     if connected_devices == len(address_hashes):
         print("IMU: [", sender, "]:", data)
-
-        # Convert raw bytearray into list of processed shorts and then package it for storage
-        # bytearray structure is [Accel Z, Gyro Z, Address Hash, Timestamp]
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
-        list_of_shorts[0] = (9.80665 * list_of_shorts[0] * 2) / (float((1 << 16) / 2.0))
-        list_of_shorts[1] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[1]
-
-        packaged_data = {"Time:": [time.time()],
-                         "Temperature:": '',
-                         "Strain:": '',
-                         "Battery:": '',
-                         'Accel_X:': '',
-                         'Accel_Y:': '',
-                         'Accel_Z:': list_of_shorts[0],
-                         'Gyro_X:': '',
-                         'Gyro_Y:': '',
-                         'Gyro_Z:': list_of_shorts[1],
-                         'Device Timestamp:': ''}
-
-        # Convert int16_t to uint16_t
-        list_of_shorts[2] = list_of_shorts[2] + 2**16
-
-        device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[2]), None)
-
-        list_of_shorts[3] = int.from_bytes((data[-2::] + data[-4:-2:]), "little")
         print(list_of_shorts)
-        packaged_data["Device Timestamp:"] = list_of_shorts[3]
+        list_of_shorts[20] = list_of_shorts[20] + 2 ** 16
 
-        output_file_name = DATA_FILE_PATH + device_address.replace(":", "_") + ".csv"
-        new_df = pd.DataFrame(packaged_data)
-        new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+        for i in range(0, 5):
+            # Convert raw bytearray into list of processed shorts and then package it for storage
+            # bytearray structure is [Accel Z, Gyro Z, Address Hash, Timestamp]
+
+            list_of_shorts[0 + i*5] = (9.80665 * list_of_shorts[0 + i*5] * 2) / (float((1 << 16) / 2.0))
+            list_of_shorts[1 + i*5] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[1 + i*5]
+
+            packaged_data = {"Time:": [time.time()],
+                             "Temperature:": '',
+                             "Strain:": '',
+                             "Battery:": '',
+                             'Accel_X:': '',
+                             'Accel_Y:': '',
+                             'Accel_Z:': list_of_shorts[0 + i*5],
+                             'Gyro_X:': '',
+                             'Gyro_Y:': '',
+                             'Gyro_Z:': list_of_shorts[1 + i*5],
+                             'Device Timestamp:': ''}
+
+            # Convert int16_t to uint16_t
+
+            device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[20]), None)
+
+            list_of_shorts[3 + i*5] = int.from_bytes((data[6 + i*5:8 + i*5:] + data[4 + i*5:6 + i*5:]), "little")
+            print(list_of_shorts)
+            packaged_data["Device Timestamp:"] = list_of_shorts[3]
+
+            output_file_name = DATA_FILE_PATH + device_address.replace(":", "_") + ".csv"
+            new_df = pd.DataFrame(packaged_data)
+            new_df.to_csv(output_file_name, index=False, header=False, mode='a')
     else:
         pass
 
