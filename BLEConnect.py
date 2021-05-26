@@ -20,11 +20,10 @@ accel_data = {}
 gyro_data = {}
 lines = []
 connected_devices = 0
-DEVICE_NAME = 'GUTRUF LAB - Right Arm'
 LED_PIN = 27
 GRAVITY_EARTH = 9.80665
 BMI2_GYR_RANGE_2000 = 0
-NUMBER_OF_READINGS = 24
+NUMBER_OF_READINGS = 20
 
 # GPIO.setmode(GPIO.BCM)
 # GPIO.setup(LED_PIN, GPIO.OUT)
@@ -45,9 +44,9 @@ characteristic_names = {
 
 
 if os.name == 'nt':
-    # addresses = ["80:EA:CA:70:00:05", "80:EA:CA:70:00:04"]
+    addresses = ["80:EA:CA:70:00:08","80:EA:CA:70:00:07","80:EA:CA:70:00:06","80:EA:CA:70:00:05", "80:EA:CA:70:00:04"]
     # addresses = ["80:EA:CA:70:00:04"]
-    addresses = ["80:EA:CA:70:00:05"]
+    # addresses = ["80:EA:CA:70:00:05"]
 else:
     addresses = []
 
@@ -161,9 +160,9 @@ def accel_notification_handler(sender, data):
 def gait_notification_handler(sender, data):
     global connected_devices
     if connected_devices == len(address_hashes):
-        print("IMU: [", sender, "]:", data)
+        # print("IMU: [", sender, "]:", data)
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
-        print(list_of_shorts)
+        # print(list_of_shorts)
         list_of_shorts[NUMBER_OF_READINGS*4] = list_of_shorts[NUMBER_OF_READINGS*4] + 2 ** 16
 
         for i in range(0, NUMBER_OF_READINGS):
@@ -193,11 +192,12 @@ def gait_notification_handler(sender, data):
             list_of_shorts[2 + i*4] = int.from_bytes((data[6 + i * 8:8 + i * 8:] + data[4 + i * 8:6 + i * 8:]), "little")
             # print(list_of_shorts)
             packaged_data["Device Timestamp:"] = list_of_shorts[2 + i*4]
-            print(packaged_data)
+            # print(packaged_data)
 
             output_file_name = DATA_FILE_PATH + device_address.replace(":", "_") + ".csv"
             new_df = pd.DataFrame(packaged_data)
             new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+        print(list_of_shorts)
     else:
         pass
 
