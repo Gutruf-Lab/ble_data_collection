@@ -14,7 +14,6 @@ import struct
 from struct import unpack
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
-
 adc_data = {}
 accel_data = {}
 gyro_data = {}
@@ -44,14 +43,15 @@ characteristic_names = {
 
 
 if os.name == 'nt':
-    addresses = ["80:EA:CA:70:00:08","80:EA:CA:70:00:07","80:EA:CA:70:00:06","80:EA:CA:70:00:05", "80:EA:CA:70:00:04"]
-    # addresses = ["80:EA:CA:70:00:04"]
+    # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
+    addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06"]
     # addresses = ["80:EA:CA:70:00:05"]
 else:
     addresses = []
 
 # addresses = ["80:EA:CA:70:00:05"]
 address_hashes = {}
+address_filePaths = {}
 
 
 def hash_addresses():
@@ -194,7 +194,7 @@ def gait_notification_handler(sender, data):
             packaged_data["Device Timestamp:"] = list_of_shorts[2 + i*4]
             # print(packaged_data)
 
-            output_file_name = DATA_FILE_PATH + device_address.replace(":", "_") + ".csv"
+            output_file_name = address_filePaths[device_address]
             new_df = pd.DataFrame(packaged_data)
             new_df.to_csv(output_file_name, index=False, header=False, mode='a')
         print(list_of_shorts)
@@ -214,15 +214,7 @@ async def connect_to_device(event_loop, address):
     global connected_devices
     while True:
         try:
-            devices = await discover(timeout=2)
-            for d in devices:
-                # print(d)
-                if d.address == address:
-                    print('****')
-                    print('Device found.')
-                    print("Attempting connection to " + address + "...")
-                    print('****')
-            # print('----')
+            print("Attempting connection to " + address + "...")
 
             async with BleakClient(address, loop=event_loop) as client:
                 x = await client.is_connected()
@@ -241,12 +233,12 @@ async def connect_to_device(event_loop, address):
 
                 client.set_disconnected_callback(disconnect_callback)
 
-                services = await client.get_services()
-                for s in services:
-                    for char in s.characteristics:
+                # services = await client.get_services()
+                # for s in services:
+                #     for char in s.characteristics:
                         # print('Characteristic: {0}'.format(await client.get_all_for_characteristic(char)))
                         # print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
-                        characteristic_names[char.handle] = (char.description + ':')
+                        # characteristic_names[char.handle] = (char.description + ':')
                 # Temp Read
 
                 # await client.start_notify('15005991-b131-3396-014c-664c9867b917', adc_notification_handler)
@@ -274,10 +266,18 @@ def create_csv_if_not_exist(filename_address):
     output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
     if not path.exists(output_file_name):
         os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
-        new_file_headers = pd.DataFrame(columns=['Time:', 'Temperature:', 'Strain:', 'Battery:',
-                                                 "Accel_X:", "Accel_Y:", "Accel_Z:", "Gyro_X:",
-                                                 "Gyro_Y:", "Gyro_Z:", "Device Timestamp:"])
-        new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
+    else:
+        num = 1
+        while path.exists(output_file_name):
+            output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + "(" + str(num) + ")" ".csv"
+            num += 1
+
+    address_filePaths[filename_address] = output_file_name
+    # print(output_file_name)
+    new_file_headers = pd.DataFrame(columns=['Time:', 'Temperature:', 'Strain:', 'Battery:',
+                                             "Accel_X:", "Accel_Y:", "Accel_Z:", "Gyro_X:",
+                                             "Gyro_Y:", "Gyro_Z:", "Device Timestamp:"])
+    new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
 
 
 if __name__ == "__main__":
@@ -290,6 +290,7 @@ if __name__ == "__main__":
         create_csv_if_not_exist(address)
 
     print(address_hashes)
+    # print(address_filePaths)
     # error catch`
 
     try:
