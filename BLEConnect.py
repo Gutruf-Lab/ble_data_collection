@@ -44,8 +44,8 @@ characteristic_names = {
 
 if os.name == 'nt':
     # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
-    addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06"]
-    # addresses = ["80:EA:CA:70:00:05"]
+    addresses = ["80:EA:CA:70:00:04", "80:EA:CA:70:00:06","80:EA:CA:70:00:07", "80:EA:CA:70:00:11"]
+    # addresses = ["80:EA:CA:70:00:07"]
 else:
     addresses = []
 
@@ -59,17 +59,19 @@ def hash_addresses():
     for device_address in addresses:
         address_byte_array = bytearray.fromhex(device_address.replace(":", ""))
         address_byte_array.reverse()
+        # print(address_byte_array)
         # Initialize with some random large-ish prime
         hashed_address = 5381
-        # print(hex(hashed_address))
         # print("")
         for b in address_byte_array:
             hashed_address = ((hashed_address << 5) + hashed_address) + b
             hashed_address &= 0xFFFF
+
             # print(hex(hashed_address))
             # print(" ::", hex(b))
             # print(hashed_address)
         # print(hex(hashed_address))
+
         address_hashes[device_address] = hashed_address
 
 
@@ -160,9 +162,9 @@ def accel_notification_handler(sender, data):
 def gait_notification_handler(sender, data):
     global connected_devices
     if connected_devices == len(address_hashes):
-        # print("IMU: [", sender, "]:", data)
+        print("IMU: [", sender, "]:", data)
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
-        # print(list_of_shorts)
+        print(list_of_shorts)
         list_of_shorts[NUMBER_OF_READINGS*4] = list_of_shorts[NUMBER_OF_READINGS*4] + 2 ** 16
 
         for i in range(0, NUMBER_OF_READINGS):
@@ -185,6 +187,7 @@ def gait_notification_handler(sender, data):
                              'Device Timestamp:': ''}
 
             # Convert int16_t to uint16_t
+            print(list_of_shorts)
 
             device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[NUMBER_OF_READINGS*4]), None)
 
@@ -194,10 +197,10 @@ def gait_notification_handler(sender, data):
             packaged_data["Device Timestamp:"] = list_of_shorts[2 + i*4]
             # print(packaged_data)
 
-            output_file_name = address_filePaths[device_address]
-            new_df = pd.DataFrame(packaged_data)
-            new_df.to_csv(output_file_name, index=False, header=False, mode='a')
-        print(list_of_shorts)
+            # output_file_name = address_filePaths[device_address]
+            # new_df = pd.DataFrame(packaged_data)
+            # new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+        # print(list_of_shorts)
     else:
         pass
 
@@ -216,10 +219,16 @@ async def connect_to_device(event_loop, address):
         try:
             print("Attempting connection to " + address + "...")
 
+            devices = await discover(timeout=2)
+            for d in devices:
+
+                if d.name not in ["Unknown", "Microsoft", "Apple, Inc.", "", "LE_WH-1000XM4"]:
+                    print(d)
+
             async with BleakClient(address, loop=event_loop) as client:
                 x = await client.is_connected()
                 connected_devices += 1
-
+                print("Connected to " + str(connected_devices) + " devices out of " + str(len(address_hashes)) + ".")
                 name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
                 print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
                 disconnected_event = asyncio.Event()
@@ -255,8 +264,8 @@ async def connect_to_device(event_loop, address):
 
                 print("Connected: {0}".format(await client.is_connected()))
         except asyncio.exceptions.TimeoutError as e:
-            print(e)
-            print("----")
+            print("Didn't connect to " + address + " in time.")
+
         except BleakError as e:
             print(e)
             print('----')
