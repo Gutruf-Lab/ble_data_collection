@@ -22,7 +22,7 @@ connected_devices = 0
 LED_PIN = 27
 GRAVITY_EARTH = 9.80665
 BMI2_GYR_RANGE_2000 = 0
-NUMBER_OF_READINGS = 20
+NUMBER_OF_READINGS = 24
 
 # GPIO.setmode(GPIO.BCM)
 # GPIO.setup(LED_PIN, GPIO.OUT)
@@ -43,9 +43,9 @@ characteristic_names = {
 
 
 if os.name == 'nt':
-    # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
-    addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06"]
-    # addresses = ["80:EA:CA:70:00:05"]
+     addresses = ["80:EA:CA:70:00:07", "80:EA:CA:70:00:11","80:EA:CA:70:00:04"]
+    # addresses = ["80:EA:CA:70:00:05", "80:EA:CA:70:00:06"]
+    # addresses = ["80:EA:CA:70:00:11"]
 else:
     addresses = []
 
@@ -164,7 +164,7 @@ def gait_notification_handler(sender, data):
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
         # print(list_of_shorts)
         list_of_shorts[NUMBER_OF_READINGS*4] = list_of_shorts[NUMBER_OF_READINGS*4] + 2 ** 16
-
+        print("d ", end='')
         for i in range(0, NUMBER_OF_READINGS):
             # Convert raw bytearray into list of processed shorts and then package it for storage
             # bytearray structure is [Accel Z, Gyro Z, Address Hash, Timestamp]
@@ -185,19 +185,21 @@ def gait_notification_handler(sender, data):
                              'Device Timestamp:': ''}
 
             # Convert int16_t to uint16_t
-
             device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[NUMBER_OF_READINGS*4]), None)
 
             # list_of_shorts[2 + i*4] = int.from_bytes((data[6 + i*4:8 + i*4:] + data[4 + i*4:6 + i*4:]), "little")
             list_of_shorts[2 + i*4] = int.from_bytes((data[6 + i * 8:8 + i * 8:] + data[4 + i * 8:6 + i * 8:]), "little")
-            # print(list_of_shorts)
             packaged_data["Device Timestamp:"] = list_of_shorts[2 + i*4]
             # print(packaged_data)
 
+            # print("Device address: ", device_address)
             output_file_name = address_filePaths[device_address]
+            # print(output_file_name)
+
             new_df = pd.DataFrame(packaged_data)
             new_df.to_csv(output_file_name, index=False, header=False, mode='a')
-        print(list_of_shorts)
+        # print(list_of_shorts)
+
     else:
         pass
 
@@ -216,10 +218,10 @@ async def connect_to_device(event_loop, address):
         try:
             print("Attempting connection to " + address + "...")
 
-            async with BleakClient(address, loop=event_loop) as client:
-                x = await client.is_connected()
+            async with BleakClient(address, timeout=5, loop=event_loop) as client:
+                # x = await client.is_connected()
                 connected_devices += 1
-
+                print("Connected to " + str(connected_devices) + "/" + str(len(address_hashes)) + " devices.")
                 name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
                 print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
                 disconnected_event = asyncio.Event()
@@ -255,7 +257,7 @@ async def connect_to_device(event_loop, address):
 
                 print("Connected: {0}".format(await client.is_connected()))
         except asyncio.exceptions.TimeoutError as e:
-            print(e)
+            print("Failed to connect in time.")
             print("----")
         except BleakError as e:
             print(e)
