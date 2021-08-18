@@ -1,7 +1,7 @@
 import pandas as pd
 
-file_name = "data/80_EA_CA_70_00_04.csv"
-file_name_output = "data/04_nodupes.csv"
+file_name = "data/8_18_TuckerTest.csv"
+file_name_output = "data/8_18_TuckerTest_nodupes.csv"
 
 df = pd.read_csv(file_name, sep=",")
 

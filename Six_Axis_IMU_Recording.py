@@ -18,7 +18,7 @@ from struct import unpack
 sys.coinit_flags = 2
 
 connected_devices = 0
-NUMBER_OF_READINGS = 20
+NUMBER_OF_READINGS = 12
 
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
@@ -54,36 +54,43 @@ def hash_addresses():
 def gait_notification_handler(sender, data):
     global connected_devices
     if connected_devices == len(address_hashes):
+        print(data)
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
-
+        # print(list_of_shorts)
         # Convert int16_t to uint16_t
-        list_of_shorts[NUMBER_OF_READINGS*4] = list_of_shorts[NUMBER_OF_READINGS*4] + 2 ** 16
+        list_of_shorts[NUMBER_OF_READINGS*8] = list_of_shorts[NUMBER_OF_READINGS*8] + 2 ** 16
         print("d ", end='')
         for i in range(0, NUMBER_OF_READINGS):
             # Convert raw bytearray into list of processed shorts and then package for storage
             # bytearray structure is [16-bit Accel Z, 16-bit Gyro Z, 32-bit Timestamp, 16-bit Address Hash]
 
             # IMU accelerometer and gyroscope processing taken from Bosch BMI270 interfacing library.
-            list_of_shorts[0 + i*4] = (9.80665 * list_of_shorts[0 + i*4] * 2) / (float((1 << 16) / 2.0))
-            list_of_shorts[1 + i*4] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[1 + i*4]
+            list_of_shorts[0 + i*8] = (9.80665 * list_of_shorts[0 + i*8] * 2) / (float((1 << 16) / 2.0))
+            list_of_shorts[1 + i*8] = (9.80665 * list_of_shorts[1 + i*8] * 2) / (float((1 << 16) / 2.0))
+            list_of_shorts[2 + i*8] = (9.80665 * list_of_shorts[2 + i*8] * 2) / (float((1 << 16) / 2.0))
+            list_of_shorts[3 + i*8] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[3 + i*8]
+            list_of_shorts[4 + i*8] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[4 + i*8]
+            list_of_shorts[5 + i*8] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[5 + i*8]
 
             packaged_data = {"Time:": [time.time()],
                              "Temperature:": '',
                              "Strain:": '',
                              "Battery:": '',
-                             'Accel_X:': '',
-                             'Accel_Y:': list_of_shorts[0 + i*4],
-                             'Accel_Z:': '',
-                             'Gyro_X:': '',
-                             'Gyro_Y:': list_of_shorts[1 + i*4],
-                             'Gyro_Z:': '',
+                             'Accel_X:': list_of_shorts[0 + i*8],
+                             'Accel_Y:': list_of_shorts[1 + i*8],
+                             'Accel_Z:': list_of_shorts[2 + i*8],
+                             'Gyro_X:': list_of_shorts[3 + i*8],
+                             'Gyro_Y:': list_of_shorts[4 + i*8],
+                             'Gyro_Z:': list_of_shorts[5 + i*8],
                              'Device Timestamp:': ''}
 
-            device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[NUMBER_OF_READINGS*4]), None)
 
-            list_of_shorts[2 + i*4] = int.from_bytes((data[6 + i * 8:8 + i * 8:] + data[4 + i * 8:6 + i * 8:]), "little")
-            packaged_data["Device Timestamp:"] = list_of_shorts[2 + i*4]
+            device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[NUMBER_OF_READINGS*8]), None)
 
+            list_of_shorts[6 + i*8] = int.from_bytes((data[14 + i * 16:16 + i * 16:] + data[12 + i * 16:14 + i * 16:]), "little")
+            print(list_of_shorts[6 + i*8])
+            packaged_data["Device Timestamp:"] = list_of_shorts[6 + i*8]
+            # print(packaged_data)
             # Write processed and packaged data out to file
             output_file_name = address_filePaths[device_address]
             # print(output_file_name)
@@ -169,6 +176,8 @@ if __name__ == "__main__":
 
     for address in addresses:
         create_csv_if_not_exist(address)
+
+    print(address_filePaths)
 
     try:
         loop = asyncio.get_event_loop()
