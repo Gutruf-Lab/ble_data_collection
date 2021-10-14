@@ -18,14 +18,14 @@ from struct import unpack
 sys.coinit_flags = 2
 
 connected_devices = 0
-NUMBER_OF_READINGS = 20
+NUMBER_OF_READINGS = 12
 
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 
 if os.name == 'nt':
-    # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
-    addresses = ["80:EA:CA:70:00:11"]
+    addresses = ["80:EA:CA:70:00:01", "80:EA:CA:70:00:02", "80:EA:CA:70:00:05"]
+    # addresses = ["80:EA:CA:70:00:01"]
 else:
     addresses = []
 
@@ -55,10 +55,11 @@ def gait_notification_handler(sender, data):
     global connected_devices
     if connected_devices == len(address_hashes):
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
-
+        print(data)
         # Convert int16_t to uint16_t
-        list_of_shorts[NUMBER_OF_READINGS*4] = list_of_shorts[NUMBER_OF_READINGS*4] + 2 ** 16
-        print("d ", end='')
+        if list_of_shorts[NUMBER_OF_READINGS*4] < 0:
+            list_of_shorts[NUMBER_OF_READINGS*4] = list_of_shorts[NUMBER_OF_READINGS*4] + 2 ** 16
+        # print("d ", end='')
         for i in range(0, NUMBER_OF_READINGS):
             # Convert raw bytearray into list of processed shorts and then package for storage
             # bytearray structure is [16-bit Accel Z, 16-bit Gyro Z, 32-bit Timestamp, 16-bit Address Hash]
@@ -74,8 +75,8 @@ def gait_notification_handler(sender, data):
                              'Accel_X:': '',
                              'Accel_Y:': list_of_shorts[0 + i*4],
                              'Accel_Z:': '',
-                             'Gyro_X:': '',
-                             'Gyro_Y:': list_of_shorts[1 + i*4],
+                             'Gyro_X:': list_of_shorts[1 + i*4],
+                             'Gyro_Y:': '',
                              'Gyro_Z:': '',
                              'Device Timestamp:': ''}
 
@@ -83,14 +84,16 @@ def gait_notification_handler(sender, data):
 
             list_of_shorts[2 + i*4] = int.from_bytes((data[6 + i * 8:8 + i * 8:] + data[4 + i * 8:6 + i * 8:]), "little")
             packaged_data["Device Timestamp:"] = list_of_shorts[2 + i*4]
+            # print("List of Shorts:", list_of_shorts)
+            print("Packaged Data:", packaged_data)
 
             # Write processed and packaged data out to file
             output_file_name = address_filePaths[device_address]
             # print(output_file_name)
-
+            print(packaged_data)
             new_df = pd.DataFrame(packaged_data)
             new_df.to_csv(output_file_name, index=False, header=False, mode='a')
-        print(list_of_shorts)
+        # print(list_of_shorts)
     else:
         pass
 
@@ -106,7 +109,6 @@ async def connect_to_device(event_loop, device_address):
 
                 if d.name not in ["Unknown", "Microsoft", "Apple, Inc.", "", "LE_WH-1000XM4"]:
                     print(d)
-
 
             async with BleakClient(device_address, loop=event_loop) as client:
                 x = await client.is_connected()
