@@ -24,8 +24,8 @@ DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 
 if os.name == 'nt':
-    addresses = ["80:EA:CA:70:00:01", "80:EA:CA:70:00:02", "80:EA:CA:70:00:05"]
-    # addresses = ["80:EA:CA:70:00:01"]
+    # addresses = ["80:EA:CA:70:00:01", "80:EA:CA:70:00:02", "80:EA:CA:70:00:05"]
+    addresses = ["80:EA:CA:70:00:05"]
 else:
     addresses = []
 
@@ -144,15 +144,23 @@ async def connect_to_device(event_loop, device_address):
 
 
 def create_csv_if_not_exist(filename_address):
+    # output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
+    # if not os.path.exists(output_file_name):
+    #     os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
+    # else:
+    #     num = 1
+    #     # Dynamically add new file to prevent interacting with old data (with each session)
+    #     while os.path.exists(output_file_name):
+    #         output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + "(" + str(num) + ")" ".csv"
+    #         num += 1
+
+    # ---------------------------------
+    # This section overwrites existing file instead of creating new one
     output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
-    if not os.path.exists(output_file_name):
-        os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
-    else:
-        num = 1
-        # Dynamically add new file to prevent interacting with old data (with each session)
-        while os.path.exists(output_file_name):
-            output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + "(" + str(num) + ")" ".csv"
-            num += 1
+
+    if os.path.exists(output_file_name):
+        os.remove(output_file_name)
+    # ---------------------------------
 
     # Store the file path that we're writing to. The gait_notification_handler has no context for what file.
     address_filePaths[filename_address] = output_file_name
