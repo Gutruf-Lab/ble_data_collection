@@ -4,3 +4,4 @@ venv/
 __pycache__/*g
 .idea/*
 data/
+FlinnData/
