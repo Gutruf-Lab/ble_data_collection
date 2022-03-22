@@ -57,33 +57,35 @@ def gait_notification_handler(sender, data):
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
         # print(data)
         # Convert int16_t to uint16_t
-        if list_of_shorts[NUMBER_OF_READINGS*4] < 0:
-            list_of_shorts[NUMBER_OF_READINGS*4] = list_of_shorts[NUMBER_OF_READINGS*4] + 2 ** 16
+        if list_of_shorts[NUMBER_OF_READINGS*5] < 0:
+            list_of_shorts[NUMBER_OF_READINGS*5] = list_of_shorts[NUMBER_OF_READINGS*5] + 2 ** 16
         # print("d ", end='')
         for i in range(0, NUMBER_OF_READINGS):
             # Convert raw bytearray into list of processed shorts and then package for storage
             # bytearray structure is [16-bit Accel Z, 16-bit Gyro Z, 32-bit Timestamp, 16-bit Address Hash]
 
             # IMU accelerometer and gyroscope processing taken from Bosch BMI270 interfacing library.
-            list_of_shorts[0 + i*4] = (9.80665 * list_of_shorts[0 + i*4] * 2) / (float((1 << 16) / 2.0))
-            list_of_shorts[1 + i*4] = (2000 / ((float((1 << 16) / 2.0)) + 0)) * list_of_shorts[1 + i*4]
+            list_of_shorts[0 + i * 5] = (9.80665 * list_of_shorts[0 + i * 5] * 2) / (float((1 << 16) / 2.0))
+            list_of_shorts[1 + i * 5] = (9.80665 * list_of_shorts[1 + i * 5] * 2) / (float((1 << 16) / 2.0))
+            list_of_shorts[2 + i * 5] = (9.80665 * list_of_shorts[2 + i * 5] * 2) / (float((1 << 16) / 2.0))
+
 
             packaged_data = {"Time:": [time.time()],
                              "Temperature:": '',
                              "Strain:": '',
                              "Battery:": '',
-                             'Accel_X:': '',
-                             'Accel_Y:': list_of_shorts[0 + i*4],
-                             'Accel_Z:': '',
-                             'Gyro_X:': list_of_shorts[1 + i*4],
+                             'Accel_X:': list_of_shorts[0 + i*5],
+                             'Accel_Y:': list_of_shorts[1 + i*5],
+                             'Accel_Z:': list_of_shorts[2 + i*5],
+                             'Gyro_X:': '',
                              'Gyro_Y:': '',
                              'Gyro_Z:': '',
                              'Device Timestamp:': ''}
 
-            device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[NUMBER_OF_READINGS*4]), None)
+            device_address = next((dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[NUMBER_OF_READINGS*5]), None)
 
-            list_of_shorts[2 + i*4] = int.from_bytes((data[6 + i * 8:8 + i * 8:] + data[4 + i * 8:6 + i * 8:]), "little")
-            packaged_data["Device Timestamp:"] = list_of_shorts[2 + i*4]
+            list_of_shorts[3 + i*5] = int.from_bytes((data[8 + i * 10:10 + i * 10:] + data[6 + i * 10:8 + i * 10:]), "little")
+            packaged_data["Device Timestamp:"] = list_of_shorts[3 + i*5]
             # print("List of Shorts:", list_of_shorts)
             # print("Packaged Data:", packaged_data)
 
@@ -144,22 +146,22 @@ async def connect_to_device(event_loop, device_address):
 
 
 def create_csv_if_not_exist(filename_address):
-    # output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
-    # if not os.path.exists(output_file_name):
-    #     os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
-    # else:
-    #     num = 1
-    #     # Dynamically add new file to prevent interacting with old data (with each session)
-    #     while os.path.exists(output_file_name):
-    #         output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + "(" + str(num) + ")" ".csv"
-    #         num += 1
+    output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
+    if not os.path.exists(output_file_name):
+        os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
+    else:
+        num = 1
+        # Dynamically add new file to prevent interacting with old data (with each session)
+        while os.path.exists(output_file_name):
+            output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + "(" + str(num) + ")" ".csv"
+            num += 1
 
     # ---------------------------------
     # This section overwrites existing file instead of creating new one
-    output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
+    # output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
 
-    if os.path.exists(output_file_name):
-        os.remove(output_file_name)
+    # if os.path.exists(output_file_name):
+    #     os.remove(output_file_name)
     # ---------------------------------
 
     # Store the file path that we're writing to. The gait_notification_handler has no context for what file.
@@ -179,6 +181,8 @@ if __name__ == "__main__":
 
     for address in addresses:
         create_csv_if_not_exist(address)
+
+    print(address_filePaths)
 
     try:
         loop = asyncio.get_event_loop()
