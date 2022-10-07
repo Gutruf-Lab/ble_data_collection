@@ -9,7 +9,7 @@ from bleak import BleakClient, discover
 from bleak.exc import BleakError
 import asyncio
 import pandas as pd
-import oct2py as oct # run matlab scripts in python
+# import oct2py as oct # run matlab scripts in python
 import os
 import sys
 import time
@@ -19,11 +19,14 @@ from struct import unpack
 sys.coinit_flags = 2
 
 connected_devices = 0
-NUMBER_OF_READINGS = 12
-DATA_FRAMES_TO_MODEL = 1200  # based off 20hz collection. 1200 = 1 minute of data
+NUMBER_OF_READINGS = 10
 
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
+DF_GOOD_POSTURE = 200  # based off 20hz collection. 1200, 12 df, 20hz
+DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
+DF_BAD_POSTURE = 200
+POSTURE_STATUS = b'0'
 
 if os.name == 'nt':
     # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
@@ -55,6 +58,10 @@ def hash_addresses():
 
 def gait_notification_handler(sender, data):
     global connected_devices
+    global DATA_FRAMES_TO_MODEL
+    global DF_GOOD_POSTURE
+    global DF_BAD_POSTURE
+    global POSTURE_STATUS
     if connected_devices == len(address_hashes):
         print(data)
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
@@ -109,24 +116,41 @@ def gait_notification_handler(sender, data):
             new_df = pd.DataFrame(packaged_data)
             new_df.to_csv(output_file_name, index=False,
                           header=False, mode='a')
+            if len(open(output_file_name, "r").readlines()) >= DATA_FRAMES_TO_MODEL:
+                # TODO feed csv to model
+                # TODO get model output
+                modelOutput = b'1'  # 1 is bad posture
+                POSTURE_STATUS = modelOutput
+                if modelOutput == b'1':
+                    DATA_FRAMES_TO_MODEL = DF_BAD_POSTURE
+                #   TODO send model information to Da14585
+                # TODO make new csv
+                elif modelOutput == b'0':
+                    DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
+                # print(output_file_name)
+                # delete_csv(output_file_name)
+                create_csv_if_not_exist(addresses[0])
+
         print(list_of_shorts)
-
-        if len(open(output_file_name, "r").readlines()) >= DATA_FRAMES_TO_MODEL:
-            # TODO feed csv to model
-            # TODO get model output
-            modelOutput = 1  # 1 is bad posture
-            if modelOutput == 1:
-                DATA_FRAMES_TO_MODEL = 100  # change the time to 5 seconds of data
-            # TODO send model information to Da14585
-            # TODO make new csv
-            elif modelOutput == 0:
-                DATA_FRAMES_TO_MODEL = 1200  # change time back to 60 seconds of data
-            print(output_file_name)
-            # delete_csv(output_file_name)
-            create_csv_if_not_exist(addresses[0])
-
     else:
         pass
+# def model_response_handler():
+#     if len(open(output_file_name, "r").readlines()) >= DATA_FRAMES_TO_MODEL:
+#                 # TODO feed csv to model
+#                 # TODO get model output
+#                 modelOutput = 1  # 1 is bad posture
+
+#                 if modelOutput == 1:
+#                     DATA_FRAMES_TO_MODEL = DF_BAD_POSTURE
+#                 #   TODO send model information to Da14585
+#                 # TODO make new csv
+#                 elif modelOutput == 0:
+#                     DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
+#                 #print(output_file_name)
+#                 # delete_csv(output_file_name)
+#                 create_csv_if_not_exist(addresses[0])
+#     else:
+#         return 0
 
 
 async def connect_to_device(event_loop, device_address):
@@ -135,7 +159,7 @@ async def connect_to_device(event_loop, device_address):
         try:
             print("Attempting connection to " + device_address + "...")
 
-            devices = await discover(timeout=2)
+            devices = await discover()
             for d in devices:
 
                 if d.name not in ["Unknown", "Microsoft", "Apple, Inc.", "", "LE_WH-1000XM4"]:
@@ -161,9 +185,10 @@ async def connect_to_device(event_loop, device_address):
 
                 client.set_disconnected_callback(disconnect_callback)
 
-                # Gait Data
+                # imu Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', gait_notification_handler)
-
+                # write to this same characteristic
+                #await client.write_gatt_char('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', POSTURE_STATUS)
                 await disconnected_event.wait()
                 await client.disconnect()
 
@@ -178,7 +203,7 @@ async def connect_to_device(event_loop, device_address):
 
 def create_csv_if_not_exist(filename_address):
     output_file_name = DATA_FILE_PATH + \
-        filename_address.replace(":", "_") + ".csv"
+        filename_address.replace(":", "_") + "(1)" + ".csv"
     if not os.path.exists(output_file_name):
         os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
     else:
@@ -211,8 +236,8 @@ if __name__ == "__main__":
     hash_addresses()
     print(address_hashes)
 
-  #  for address in addresses:
-   #     create_csv_if_not_exist(address)
+    for address in addresses:
+        create_csv_if_not_exist(address)
 
     # print(address_filePaths)
 
