@@ -26,7 +26,7 @@ DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 DF_GOOD_POSTURE = 200  # based off 20hz collection. 1200, 12 df, 20hz
 DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
 DF_BAD_POSTURE = 200
-POSTURE_STATUS = b'0'
+POSTURE_STATUS = b'00000000'
 
 if os.name == 'nt':
     # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
@@ -119,13 +119,13 @@ def gait_notification_handler(sender, data):
             if len(open(output_file_name, "r").readlines()) >= DATA_FRAMES_TO_MODEL:
                 # TODO feed csv to model
                 # TODO get model output
-                modelOutput = b'1'  # 1 is bad posture
+                modelOutput = b'00000001'  # 1 is bad posture
                 POSTURE_STATUS = modelOutput
-                if modelOutput == b'1':
+                if modelOutput == b'00000001':
                     DATA_FRAMES_TO_MODEL = DF_BAD_POSTURE
                 #   TODO send model information to Da14585
                 # TODO make new csv
-                elif modelOutput == b'0':
+                elif modelOutput == b'00000000':
                     DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
                 # print(output_file_name)
                 # delete_csv(output_file_name)
@@ -155,6 +155,7 @@ def gait_notification_handler(sender, data):
 
 async def connect_to_device(event_loop, device_address):
     global connected_devices
+    global POSTURE_STATUS
     while True:
         try:
             print("Attempting connection to " + device_address + "...")
@@ -187,8 +188,9 @@ async def connect_to_device(event_loop, device_address):
 
                 # imu Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', gait_notification_handler)
-                # write to this same characteristic
-                #await client.write_gatt_char('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', POSTURE_STATUS)
+                # write to the other characteristic
+                print(POSTURE_STATUS)
+                await client.write_gatt_char('2c86686a-53dc-25b3-0c4a-f0e10c8d9e27', b'00000000')
                 await disconnected_event.wait()
                 await client.disconnect()
 
