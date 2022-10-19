@@ -107,7 +107,6 @@ def gait_notification_handler(sender, data):
             list_of_shorts[6 + i*8] = int.from_bytes(
                 (data[14 + i * 16:16 + i * 16:] + data[12 + i * 16:14 + i * 16:]), "little")
            # print(list_of_shorts[6 + i*8])
-            print("data received")
             packaged_data["Device Timestamp:"] = list_of_shorts[6 + i*8]
             # print(packaged_data)
             # Write processed and packaged data out to file
@@ -133,6 +132,7 @@ def gait_notification_handler(sender, data):
                 create_csv_if_not_exist(addresses[0])
 
        # print(list_of_shorts)
+        print("data received")
     else:
         pass
 # def model_response_handler():
