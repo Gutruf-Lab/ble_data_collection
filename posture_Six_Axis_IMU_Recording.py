@@ -26,7 +26,7 @@ DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 DF_GOOD_POSTURE = 200  # based off 20hz collection. 1200, 12 df, 20hz
 DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
 DF_BAD_POSTURE = 200
-POSTURE_STATUS = b'0'
+POSTURE_STATUS = b"\x00"
 
 if os.name == 'nt':
     # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
@@ -63,13 +63,13 @@ def gait_notification_handler(sender, data):
     global DF_BAD_POSTURE
     global POSTURE_STATUS
     if connected_devices == len(address_hashes):
-        print(data)
+        #print(data)
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
         # print(list_of_shorts)
         # Convert int16_t to uint16_t
         list_of_shorts[NUMBER_OF_READINGS *
                        8] = list_of_shorts[NUMBER_OF_READINGS*8] + 2 ** 16
-        print("d ", end='')
+        #print("d ", end='')
 
         for i in range(0, NUMBER_OF_READINGS):
             # Convert raw bytearray into list of processed shorts and then package for storage
@@ -106,7 +106,8 @@ def gait_notification_handler(sender, data):
 
             list_of_shorts[6 + i*8] = int.from_bytes(
                 (data[14 + i * 16:16 + i * 16:] + data[12 + i * 16:14 + i * 16:]), "little")
-            print(list_of_shorts[6 + i*8])
+           # print(list_of_shorts[6 + i*8])
+            print("data received")
             packaged_data["Device Timestamp:"] = list_of_shorts[6 + i*8]
             # print(packaged_data)
             # Write processed and packaged data out to file
@@ -119,19 +120,19 @@ def gait_notification_handler(sender, data):
             if len(open(output_file_name, "r").readlines()) >= DATA_FRAMES_TO_MODEL:
                 # TODO feed csv to model
                 # TODO get model output
-                modelOutput = b'1'  # 1 is bad posture
+                modelOutput = b"\x01"  # 1 is bad posture
                 POSTURE_STATUS = modelOutput
-                if modelOutput == b'1':
+                if modelOutput == b"\x01":
                     DATA_FRAMES_TO_MODEL = DF_BAD_POSTURE
                 #   TODO send model information to Da14585
                 # TODO make new csv
-                elif modelOutput == b'0':
+                elif modelOutput == b"\x00":
                     DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
                 # print(output_file_name)
                 # delete_csv(output_file_name)
                 create_csv_if_not_exist(addresses[0])
 
-        print(list_of_shorts)
+       # print(list_of_shorts)
     else:
         pass
 # def model_response_handler():
@@ -187,8 +188,9 @@ async def connect_to_device(event_loop, device_address):
 
                 # imu Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', gait_notification_handler)
-                # write to this same characteristic
-                #await client.write_gatt_char('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', POSTURE_STATUS)
+                # write to the other characteristic
+                print("posture status" + str(POSTURE_STATUS))
+               # await client.write_gatt_char('2c86686a-53dc-25b3-0c4a-f0e10c8d9e27', POSTURE_STATUS)
                 await disconnected_event.wait()
                 await client.disconnect()
 
