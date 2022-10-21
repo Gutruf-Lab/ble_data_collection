@@ -27,6 +27,7 @@ DF_GOOD_POSTURE = 200  # based off 20hz collection. 1200, 12 df, 20hz
 DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
 DF_BAD_POSTURE = 200
 POSTURE_STATUS = b"\x00"
+write_to_client = False
 
 if os.name == 'nt':
     # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
@@ -55,13 +56,13 @@ def hash_addresses():
 
         address_hashes[device_address] = hashed_address
 
-
 def gait_notification_handler(sender, data):
     global connected_devices
     global DATA_FRAMES_TO_MODEL
     global DF_GOOD_POSTURE
     global DF_BAD_POSTURE
     global POSTURE_STATUS
+    global write_to_client
     if connected_devices == len(address_hashes):
         #print(data)
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
@@ -119,16 +120,17 @@ def gait_notification_handler(sender, data):
             if len(open(output_file_name, "r").readlines()) >= DATA_FRAMES_TO_MODEL:
                 # TODO feed csv to model
                 # TODO get model output
-                modelOutput = b"\x01"  # 1 is bad posture
-                POSTURE_STATUS = modelOutput
-                if modelOutput == b"\x01":
+                model_output = b"\x01"  # 1 is bad posture
+                POSTURE_STATUS = model_output
+                if model_output == b"\x01":
                     DATA_FRAMES_TO_MODEL = DF_BAD_POSTURE
                 #   TODO send model information to Da14585
                 # TODO make new csv
-                elif modelOutput == b"\x00":
+                elif model_output == b"\x00":
                     DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
                 # print(output_file_name)
-                # delete_csv(output_file_name)
+                # delete_csv(output_file_name)  
+                write_to_client = True         
                 create_csv_if_not_exist(addresses[0])
 
        # print(list_of_shorts)
@@ -139,13 +141,13 @@ def gait_notification_handler(sender, data):
 #     if len(open(output_file_name, "r").readlines()) >= DATA_FRAMES_TO_MODEL:
 #                 # TODO feed csv to model
 #                 # TODO get model output
-#                 modelOutput = 1  # 1 is bad posture
+#                 model_output = 1  # 1 is bad posture
 
-#                 if modelOutput == 1:
+#                 if model_output == 1:
 #                     DATA_FRAMES_TO_MODEL = DF_BAD_POSTURE
 #                 #   TODO send model information to Da14585
 #                 # TODO make new csv
-#                 elif modelOutput == 0:
+#                 elif model_output == 0:
 #                     DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
 #                 #print(output_file_name)
 #                 # delete_csv(output_file_name)
@@ -156,6 +158,7 @@ def gait_notification_handler(sender, data):
 
 async def connect_to_device(event_loop, device_address):
     global connected_devices
+    global write_to_client
     while True:
         try:
             print("Attempting connection to " + device_address + "...")
@@ -175,6 +178,23 @@ async def connect_to_device(event_loop, device_address):
                 name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
                 print('\nConnected to device {} ({})'.format(
                     device_address, name.decode(encoding="utf-8")))
+                
+                services = await client.get_services()
+
+                for service in services:
+                    print('\nservice', service.handle, service.uuid, service.description)
+
+                    characteristics = service.characteristics
+
+                    for char in characteristics:
+                        print('  characteristic', char.handle, char.uuid, char.description, char.properties)
+        
+                        descriptors = char.descriptors
+
+                        for desc in descriptors:
+                            print('    descriptor', desc)
+
+                
                 disconnected_event = asyncio.Event()
 
                 def disconnect_callback(client):
@@ -189,8 +209,13 @@ async def connect_to_device(event_loop, device_address):
                 # imu Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', gait_notification_handler)
                 # write to the other characteristic
-                print("posture status" + str(POSTURE_STATUS))
-               # await client.write_gatt_char('2c86686a-53dc-25b3-0c4a-f0e10c8d9e27', POSTURE_STATUS)
+                while client.is_connected:
+                    if write_to_client:
+                        await client.write_gatt_char('2c86686a-53dc-25b3-0c4a-f0e10c8d9e27', POSTURE_STATUS)
+                        print("posture status sent  " + str(POSTURE_STATUS))
+                        await asyncio.sleep(1.0)
+                        write_to_client = False
+                    await asyncio.sleep(1.0)
                 await disconnected_event.wait()
                 await client.disconnect()
 
