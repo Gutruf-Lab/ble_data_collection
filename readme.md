@@ -14,11 +14,15 @@ Example:
 
 
 ## Install Instructions
+Currently running in Python 3.7
 1. Ensure you have the C++ build tools for your OS. Download them here under Tools for Visual Studio.
     - https://visualstudio.microsoft.com/downloads/
 2. Clone this repository somewhere onto your system, open the new project directory, and create & activate a virtualenv.
     - `pip install virtualenv`
-    - Create the environemntt: `virtualenv venv`
+    - Create the environment: `virtualenv venv`
+    - if you have path issues: `python3 -m virtualenv venv`
         - Activate Venv On Windows: `.\venv\Scripts\activate`
         - Activate on Linux: `source /venv/Scripts/activate`
+        - Activate on MacOS: `source ./venv/bin/activate`
 4. Run command `pip install -r requirements.txt` to install all dependencies.
+

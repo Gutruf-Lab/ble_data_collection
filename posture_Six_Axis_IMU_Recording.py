@@ -33,16 +33,18 @@ if os.name == 'nt':
     # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
     addresses = ["80:EA:CA:70:00:11"]
 else:
-    addresses = []
+    # on mac, this will be different on every machine
+    addresses = ["6DFB2C3D-3B33-F0EC-127F-B7B1AE23FFFC"]
 
 address_hashes = {}
 address_filePaths = {}
+output_file_name = ''
 
 
 def hash_addresses():
     global addresses
     for device_address in addresses:
-        address_byte_array = bytearray.fromhex(device_address.replace(":", ""))
+        address_byte_array = bytearray.fromhex(device_address.replace(":", "").replace("-", "_"))
         address_byte_array.reverse()
 
         # Initialize with some random large-ish prime
@@ -56,6 +58,7 @@ def hash_addresses():
 
         address_hashes[device_address] = hashed_address
 
+
 def gait_notification_handler(sender, data):
     global connected_devices
     global DATA_FRAMES_TO_MODEL
@@ -63,7 +66,8 @@ def gait_notification_handler(sender, data):
     global DF_BAD_POSTURE
     global POSTURE_STATUS
     global write_to_client
-    if connected_devices == len(address_hashes):
+    global output_file_name
+    if connected_devices == len(address_hashes) or os.name != 'nt':
         #print(data)
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
         # print(list_of_shorts)
@@ -107,11 +111,11 @@ def gait_notification_handler(sender, data):
 
             list_of_shorts[6 + i*8] = int.from_bytes(
                 (data[14 + i * 16:16 + i * 16:] + data[12 + i * 16:14 + i * 16:]), "little")
-           # print(list_of_shorts[6 + i*8])
+            # print(list_of_shorts[6 + i*8])
             packaged_data["Device Timestamp:"] = list_of_shorts[6 + i*8]
             # print(packaged_data)
             # Write processed and packaged data out to file
-            output_file_name = address_filePaths[device_address]
+            # output_file_name = address_filePaths[device_address]
             # print(output_file_name)
 
             new_df = pd.DataFrame(packaged_data)
@@ -170,14 +174,15 @@ async def connect_to_device(event_loop, device_address):
                     print(d)
 
             async with BleakClient(device_address, loop=event_loop) as client:
-                x = await client.is_connected()
+                while not client.is_connected:
+                    pass
                 connected_devices += 1
                 print("Connected to " + str(connected_devices) +
                       " devices out of " + str(len(address_hashes)) + ".")
 
-                name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
-                print('\nConnected to device {} ({})'.format(
-                    device_address, name.decode(encoding="utf-8")))
+                # name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
+                # print('\nConnected to device {} ({})'.format(
+                #     device_address, name.decode(encoding="utf-8")))
                 
                 services = await client.get_services()
 
@@ -194,7 +199,6 @@ async def connect_to_device(event_loop, device_address):
                         for desc in descriptors:
                             print('    descriptor', desc)
 
-                
                 disconnected_event = asyncio.Event()
 
                 def disconnect_callback(client):
@@ -218,8 +222,9 @@ async def connect_to_device(event_loop, device_address):
                     await asyncio.sleep(1.0)
                 await disconnected_event.wait()
                 await client.disconnect()
-
-                print("Connected: {0}".format(await client.is_connected()))
+                while 1:
+                    pass
+                # print("Connected: {0}".format(await client.is_connected()))
         except asyncio.exceptions.TimeoutError:
             print("Didn't connect to " + device_address + " in time.")
 
@@ -229,8 +234,9 @@ async def connect_to_device(event_loop, device_address):
 
 
 def create_csv_if_not_exist(filename_address):
+    global output_file_name
     output_file_name = DATA_FILE_PATH + \
-        filename_address.replace(":", "_") + "(1)" + ".csv"
+        filename_address.replace(":", "_").replace("-", "_") + "(1)" + ".csv"
     if not os.path.exists(output_file_name):
         os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
     else:
@@ -239,7 +245,7 @@ def create_csv_if_not_exist(filename_address):
         # num is collection window
         while os.path.exists(output_file_name):
             output_file_name = DATA_FILE_PATH + \
-                filename_address.replace(":", "_") + \
+                filename_address.replace(":", "_").replace("-", "_") + \
                 "(" + str(num) + ")" ".csv"
             num += 1
 
@@ -260,8 +266,9 @@ def delete_csv(filename):
 if __name__ == "__main__":
     global handle_desc_pairs
     connected_devices = 0
-    hash_addresses()
-    print(address_hashes)
+    if os.name == 'nt':
+        hash_addresses()
+        print(address_hashes)
 
     for address in addresses:
         create_csv_if_not_exist(address)
