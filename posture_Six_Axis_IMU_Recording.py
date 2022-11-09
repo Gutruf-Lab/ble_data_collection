@@ -1,15 +1,14 @@
-#
-#   Python BLE interface for Tucker Stuart's Mesh Project
-#   Uses the Bleak library to handle notification subscription and callbacks
-#   5/30/2021
-#   Kevin Kasper (kasper@email.arizona.edu)
-#
+'''
+  Python BLE interface for Tucker Stuart's Mesh Project
+  Uses the Bleak library to handle notification subscription and callbacks
+  5/30/2021
+  Kevin Kasper (kasper@arizona.edu), Brandon Good (brandongood@arizona.edu)
+'''
 
 from bleak import BleakClient, discover
 from bleak.exc import BleakError
 import asyncio
 import pandas as pd
-# import oct2py as oct # run matlab scripts in python
 import os
 import sys
 import time
@@ -21,25 +20,36 @@ sys.coinit_flags = 2
 connected_devices = 0
 NUMBER_OF_READINGS = 10
 
+# storage for wearable data
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
+
+'''toggles for changing # of data frames to send to model
+        ex. if wearable currently thinks the posture is bad,
+            change the number of data frames to DF_BAD_POSTURE
+            to effectively lower the amount of time before the
+            next posture evaluation
+'''
 DF_GOOD_POSTURE = 200  # based off 20hz collection. 1200, 12 df, 20hz
-DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
+DATA_FRAMES_TO_MODEL = 200
 DF_BAD_POSTURE = 200
+
+# model output of posture status
 POSTURE_STATUS = b"\x00"
-write_to_client = False
+# flag for if model is called, result gathered, and now its time to 
+# send response to the wearable
+WRITE_TO_CLIENT = False
 
 if os.name == 'nt':
     # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
     addresses = ["80:EA:CA:70:00:11"]
-else:
-    # on mac, this will be different on every machine
-    addresses = ["6DFB2C3D-3B33-F0EC-127F-B7B1AE23FFFC"]
+else: # else, we're on MacOS
+    addresses = ["6DFB2C3D-3B33-F0EC-127F-B7B1AE23FFFC"] # this will be different on every Mac computer.
+    #TODO reconfigure for something more generic
 
 address_hashes = {}
 address_filePaths = {}
 output_file_name = ''
-
 
 def hash_addresses():
     global addresses
@@ -58,14 +68,13 @@ def hash_addresses():
 
         address_hashes[device_address] = hashed_address
 
-
 def gait_notification_handler(sender, data):
     global connected_devices
     global DATA_FRAMES_TO_MODEL
     global DF_GOOD_POSTURE
     global DF_BAD_POSTURE
     global POSTURE_STATUS
-    global write_to_client
+    global WRITE_TO_CLIENT
     global output_file_name
     if connected_devices == len(address_hashes) or os.name != 'nt':
         #print(data)
@@ -128,41 +137,21 @@ def gait_notification_handler(sender, data):
                 POSTURE_STATUS = model_output
                 if model_output == b"\x01":
                     DATA_FRAMES_TO_MODEL = DF_BAD_POSTURE
-                #   TODO send model information to Da14585
-                # TODO make new csv
                 elif model_output == b"\x00":
                     DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
                 # print(output_file_name)
                 # delete_csv(output_file_name)  
-                write_to_client = True         
+                WRITE_TO_CLIENT = True         
                 create_csv_if_not_exist(addresses[0])
 
-       # print(list_of_shorts)
+        # print(list_of_shorts)
         print("data received")
     else:
         pass
-# def model_response_handler():
-#     if len(open(output_file_name, "r").readlines()) >= DATA_FRAMES_TO_MODEL:
-#                 # TODO feed csv to model
-#                 # TODO get model output
-#                 model_output = 1  # 1 is bad posture
-
-#                 if model_output == 1:
-#                     DATA_FRAMES_TO_MODEL = DF_BAD_POSTURE
-#                 #   TODO send model information to Da14585
-#                 # TODO make new csv
-#                 elif model_output == 0:
-#                     DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
-#                 #print(output_file_name)
-#                 # delete_csv(output_file_name)
-#                 create_csv_if_not_exist(addresses[0])
-#     else:
-#         return 0
-
 
 async def connect_to_device(event_loop, device_address):
     global connected_devices
-    global write_to_client
+    global WRITE_TO_CLIENT
     while True:
         try:
             print("Attempting connection to " + device_address + "...")
@@ -214,11 +203,11 @@ async def connect_to_device(event_loop, device_address):
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', gait_notification_handler)
                 # write to the other characteristic
                 while client.is_connected:
-                    if write_to_client:
+                    if WRITE_TO_CLIENT:
                         await client.write_gatt_char('2c86686a-53dc-25b3-0c4a-f0e10c8d9e27', POSTURE_STATUS)
                         print("posture status sent  " + str(POSTURE_STATUS))
                         await asyncio.sleep(1.0)
-                        write_to_client = False
+                        WRITE_TO_CLIENT = False
                     await asyncio.sleep(1.0)
                 await disconnected_event.wait()
                 await client.disconnect()
@@ -231,7 +220,6 @@ async def connect_to_device(event_loop, device_address):
         except BleakError as err:
             print(err)
             print('----')
-
 
 def create_csv_if_not_exist(filename_address):
     global output_file_name
@@ -257,11 +245,9 @@ def create_csv_if_not_exist(filename_address):
                                              "Gyro_Y:", "Gyro_Z:", "Device Timestamp:"])
     new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
 
-
 def delete_csv(filename):
     os.popen('rm ./' + filename)
     print("DELETED: " + filename)
-
 
 if __name__ == "__main__":
     global handle_desc_pairs
