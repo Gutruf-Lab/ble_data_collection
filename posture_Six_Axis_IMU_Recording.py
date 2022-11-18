@@ -220,14 +220,12 @@ async def set_motor_defaults(client):
     global HM_DUTY_CYCLE
     global HM_T1
     global HM_T2
-    print("called")
     await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE20', HM_DUTY_CYCLE) # hm1 duty cycle
     await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C31434F', HM_DUTY_CYCLE) #hm2 duty cycle
     await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE2A', HM_T1) #hm1 t1
     await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C314350', HM_T1) #hm2 t1
     await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE22', HM_T2) #hm1 t2
     await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C314351', HM_T2) #hm2 t2
-    print("called 2)")
 
 async def connect_to_device(event_loop, device_address):
     global connected_devices
@@ -348,8 +346,8 @@ if __name__ == "__main__":
         hash_addresses()
         print(address_hashes)
 
-    for address in addresses:
-        create_csv_if_not_exist(address)
+    # for address in addresses:
+    #     create_csv_if_not_exist(address)
 
     # print(address_filePaths)
 
