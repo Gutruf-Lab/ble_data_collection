@@ -127,19 +127,19 @@ def gait_notification_handler(sender, data):
             list_of_shorts[5 + i*8] = (2000 / ((float((1 << 16) / 2.0)) + 0)
                                        ) * list_of_shorts[5 + i*8]
 
-            # packaged_data = {
-            #                #"Time:": [time.time()],
-            #                #  "Temperature:": '',
-            #                #  "Strain:": '',
-            #                #  "Battery:": '',
-            #                  'Accel_X:': list_of_shorts[0 + i*8],
-            #                  'Accel_Y:': list_of_shorts[1 + i*8],
-            #                  'Accel_Z:': list_of_shorts[2 + i*8],
-            #                  'Gyro_X:': list_of_shorts[3 + i*8],
-            #                  'Gyro_Y:': list_of_shorts[4 + i*8],
-            #                  'Gyro_Z:': list_of_shorts[5 + i*8]
-            #                 # 'Device Timestamp:': ''
-            #                 }
+            packaged_data = {
+                           #"Time:": [time.time()],
+                           #  "Temperature:": '',
+                           #  "Strain:": '',
+                           #  "Battery:": '',
+                             'Accel_X:': list_of_shorts[0 + i*8],
+                             'Accel_Y:': list_of_shorts[1 + i*8],
+                             'Accel_Z:': list_of_shorts[2 + i*8],
+                             'Gyro_X:': list_of_shorts[3 + i*8],
+                             'Gyro_Y:': list_of_shorts[4 + i*8],
+                             'Gyro_Z:': list_of_shorts[5 + i*8]
+                            # 'Device Timestamp:': ''
+                            }
             READINGS['Accel_X:'].append(list_of_shorts[0 + i*8])
             READINGS['Accel_Y:'].append(list_of_shorts[1 + i*8])
             READINGS['Accel_Z:'].append(list_of_shorts[2 + i*8])
@@ -152,15 +152,15 @@ def gait_notification_handler(sender, data):
             # list_of_shorts[6 + i*8] = int.from_bytes(
             #    (data[14 + i * 16:16 + i * 16:] + data[12 + i * 16:14 + i * 16:]), "little")
             # print(list_of_shorts[6 + i*8])
-            #packaged_data["Device Timestamp:"] = list_of_shorts[6 + i*8]
+            # packaged_data["Device Timestamp:"] = list_of_shorts[6 + i*8]
             # print(packaged_data)
             # Write processed and packaged data out to file
-            # output_file_name = address_filePaths[device_address]
+            output_file_name = address_filePaths[device_address]
             # print(output_file_name)
 
-            # new_df = pd.DataFrame(packaged_data)
-            # new_df.to_csv(output_file_name, index=False,
-            #               header=False, mode='a')
+            new_df = pd.DataFrame(packaged_data)
+            new_df.to_csv(output_file_name, index=False,
+                          header=False, mode='a')
             if len(READINGS['Accel_X:']) >= DATA_FRAMES_TO_MODEL:
 
                 averages = {
@@ -204,7 +204,7 @@ def gait_notification_handler(sender, data):
                     # 'Device Timestamp:': ''
                 }
 
-                # create_csv_if_not_exist(addresses[0])
+                create_csv_if_not_exist(addresses[0])
 
         # print(list_of_shorts)
         print("data received")
