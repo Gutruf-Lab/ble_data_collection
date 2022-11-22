@@ -44,6 +44,11 @@ POSTURE_STATUS = b"\x00"
 # send response to the wearable
 WRITE_TO_CLIENT = False
 
+# motor parameters - will set both motors to these settings
+HM_DUTY_CYCLE = b"\x54" #84 in decimal
+HM_T1 = b"\x0A" # in multiples of 10ms 
+HM_T2 = b"\x14"
+
 # aggregator for our average readings
 READINGS = {
     # "Time:": [time.time()],
@@ -182,10 +187,10 @@ def gait_notification_handler(sender, data):
                 print('RESULT: ', model_result)
                 if model_result == [1]:
                     POSTURE_STATUS = b"\x01"
-                    DATA_FRAMES_TO_MODEL = DF_BAD_POSTURE
+                    DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
                 elif model_result == [0]:
                     POSTURE_STATUS = b"\x00"
-                    DATA_FRAMES_TO_MODEL = DF_GOOD_POSTURE
+                    DATA_FRAMES_TO_MODEL = DF_BAD_POSTURE
                 # print(output_file_name)
                 # delete_csv(output_file_name)
                 WRITE_TO_CLIENT = True
@@ -211,6 +216,16 @@ def gait_notification_handler(sender, data):
     else:
         pass
 
+async def set_motor_defaults(client):
+    global HM_DUTY_CYCLE
+    global HM_T1
+    global HM_T2
+    await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE20', HM_DUTY_CYCLE) # hm1 duty cycle
+    await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C31434F', HM_DUTY_CYCLE) #hm2 duty cycle
+    await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE2A', HM_T1) #hm1 t1
+    await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C314350', HM_T1) #hm2 t1
+    await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE22', HM_T2) #hm1 t2
+    await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C314351', HM_T2) #hm2 t2
 
 async def connect_to_device(event_loop, device_address):
     global connected_devices
@@ -263,7 +278,7 @@ async def connect_to_device(event_loop, device_address):
                     print("Connection lost. Retrying...")
 
                 client.set_disconnected_callback(disconnect_callback)
-
+                await set_motor_defaults(client)
                 # imu Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', gait_notification_handler)
                 # write to the other characteristic
@@ -331,8 +346,8 @@ if __name__ == "__main__":
         hash_addresses()
         print(address_hashes)
 
-    for address in addresses:
-        create_csv_if_not_exist(address)
+    # for address in addresses:
+    #     create_csv_if_not_exist(address)
 
     # print(address_filePaths)
 
