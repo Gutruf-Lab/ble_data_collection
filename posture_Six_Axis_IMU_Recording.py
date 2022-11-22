@@ -154,8 +154,8 @@ def gait_notification_handler(sender, data):
             device_address = next(
                 (dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[NUMBER_OF_READINGS*8]), None)
 
-            # list_of_shorts[6 + i*8] = int.from_bytes(
-            #    (data[14 + i * 16:16 + i * 16:] + data[12 + i * 16:14 + i * 16:]), "little")
+            list_of_shorts[6 + i*8] = int.from_bytes(
+               (data[14 + i * 16:16 + i * 16:] + data[12 + i * 16:14 + i * 16:]), "little")
             # print(list_of_shorts[6 + i*8])
             # packaged_data["Device Timestamp:"] = list_of_shorts[6 + i*8]
             # print(packaged_data)
@@ -163,7 +163,7 @@ def gait_notification_handler(sender, data):
             output_file_name = address_filePaths[device_address]
             # print(output_file_name)
 
-            new_df = pd.DataFrame(packaged_data)
+            new_df = pd.DataFrame(packaged_data,index=[0])
             new_df.to_csv(output_file_name, index=False,
                           header=False, mode='a')
             if len(READINGS['Accel_X:']) >= DATA_FRAMES_TO_MODEL:
@@ -346,8 +346,8 @@ if __name__ == "__main__":
         hash_addresses()
         print(address_hashes)
 
-    # for address in addresses:
-    #     create_csv_if_not_exist(address)
+    for address in addresses:
+        create_csv_if_not_exist(address)
 
     # print(address_filePaths)
 
