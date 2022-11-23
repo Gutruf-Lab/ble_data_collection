@@ -45,8 +45,8 @@ POSTURE_STATUS = b"\x00"
 WRITE_TO_CLIENT = False
 
 # motor parameters - will set both motors to these settings
-HM_DUTY_CYCLE = b"\x54" #84 in decimal
-HM_T1 = b"\x0A" # in multiples of 10ms 
+HM_DUTY_CYCLE = b"\x54"  # 84 in decimal
+HM_T1 = b"\x0A"  # in multiples of 10ms
 HM_T2 = b"\x14"
 
 # aggregator for our average readings
@@ -133,18 +133,18 @@ def gait_notification_handler(sender, data):
                                        ) * list_of_shorts[5 + i*8]
 
             packaged_data = {
-                           #"Time:": [time.time()],
-                           #  "Temperature:": '',
-                           #  "Strain:": '',
-                           #  "Battery:": '',
-                             'Accel_X:': list_of_shorts[0 + i*8],
-                             'Accel_Y:': list_of_shorts[1 + i*8],
-                             'Accel_Z:': list_of_shorts[2 + i*8],
-                             'Gyro_X:': list_of_shorts[3 + i*8],
-                             'Gyro_Y:': list_of_shorts[4 + i*8],
-                             'Gyro_Z:': list_of_shorts[5 + i*8]
-                            # 'Device Timestamp:': ''
-                            }
+                # "Time:": [time.time()],
+                #  "Temperature:": '',
+                #  "Strain:": '',
+                #  "Battery:": '',
+                'Accel_X:': list_of_shorts[0 + i*8],
+                'Accel_Y:': list_of_shorts[1 + i*8],
+                'Accel_Z:': list_of_shorts[2 + i*8],
+                'Gyro_X:': list_of_shorts[3 + i*8],
+                'Gyro_Y:': list_of_shorts[4 + i*8],
+                'Gyro_Z:': list_of_shorts[5 + i*8]
+                # 'Device Timestamp:': ''
+            }
             READINGS['Accel_X:'].append(list_of_shorts[0 + i*8])
             READINGS['Accel_Y:'].append(list_of_shorts[1 + i*8])
             READINGS['Accel_Z:'].append(list_of_shorts[2 + i*8])
@@ -155,7 +155,7 @@ def gait_notification_handler(sender, data):
                 (dev for dev in address_hashes if address_hashes[dev] == list_of_shorts[NUMBER_OF_READINGS*8]), None)
 
             list_of_shorts[6 + i*8] = int.from_bytes(
-               (data[14 + i * 16:16 + i * 16:] + data[12 + i * 16:14 + i * 16:]), "little")
+                (data[14 + i * 16:16 + i * 16:] + data[12 + i * 16:14 + i * 16:]), "little")
             # print(list_of_shorts[6 + i*8])
             # packaged_data["Device Timestamp:"] = list_of_shorts[6 + i*8]
             # print(packaged_data)
@@ -163,7 +163,7 @@ def gait_notification_handler(sender, data):
             output_file_name = address_filePaths[device_address]
             # print(output_file_name)
 
-            new_df = pd.DataFrame(packaged_data,index=[0])
+            new_df = pd.DataFrame(packaged_data, index=[0])
             new_df.to_csv(output_file_name, index=False,
                           header=False, mode='a')
             if len(READINGS['Accel_X:']) >= DATA_FRAMES_TO_MODEL:
@@ -181,6 +181,7 @@ def gait_notification_handler(sender, data):
                     'Gyro_Z:': [mean(READINGS['Gyro_Z:'])]
                     # 'Device Timestamp:': ''
                 }
+                print(averages)
                 avgdf = pd.DataFrame(data=averages)
                 loaded_model = joblib.load('Completed_model.joblib')
                 model_result = loaded_model.predict(avgdf)
@@ -208,24 +209,34 @@ def gait_notification_handler(sender, data):
                     'Gyro_Z:': []
                     # 'Device Timestamp:': ''
                 }
+                averages = {}
 
                 create_csv_if_not_exist(addresses[0])
 
         # print(list_of_shorts)
         print("data received")
+        print(f'gyr_y: {READINGS["Gyro_Y:"][-1]}')
     else:
         pass
+
 
 async def set_motor_defaults(client):
     global HM_DUTY_CYCLE
     global HM_T1
     global HM_T2
-    await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE20', HM_DUTY_CYCLE) # hm1 duty cycle
-    await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C31434F', HM_DUTY_CYCLE) #hm2 duty cycle
-    await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE2A', HM_T1) #hm1 t1
-    await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C314350', HM_T1) #hm2 t1
-    await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE22', HM_T2) #hm1 t2
-    await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C314351', HM_T2) #hm2 t2
+    # hm1 duty cycle
+    await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE20', HM_DUTY_CYCLE)
+    # hm2 duty cycle
+    await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C31434F', HM_DUTY_CYCLE)
+    # hm1 t1
+    await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE2A', HM_T1)
+    # hm2 t1
+    await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C314350', HM_T1)
+    # hm1 t2
+    await client.write_gatt_char('2D86686A-53DC-25B3-0C4A-F0E10C8DEE22', HM_T2)
+    # hm2 t2
+    await client.write_gatt_char('5A87B4EF-3BFA-76A8-E642-92933C314351', HM_T2)
+
 
 async def connect_to_device(event_loop, device_address):
     global connected_devices
