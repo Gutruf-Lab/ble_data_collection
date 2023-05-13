@@ -215,7 +215,6 @@ def gait_notification_handler(sender, data):
 
         # print(list_of_shorts)
         print("data received")
-        print(f'gyr_y: {READINGS["Gyro_Y:"][-1]}')
     else:
         pass
 
@@ -289,7 +288,7 @@ async def connect_to_device(event_loop, device_address):
                     print("Connection lost. Retrying...")
 
                 client.set_disconnected_callback(disconnect_callback)
-                await set_motor_defaults(client)
+                # await set_motor_defaults(client)
                 # imu Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', gait_notification_handler)
                 # write to the other characteristic
