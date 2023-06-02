@@ -4,7 +4,7 @@ import json
 from json import JSONDecodeError
 from datetime import datetime as dt
 
-raw_data = pd.read_csv('output_cher.csv')
+raw_data = pd.read_csv('output_09_20.csv')
 out_data = pd.DataFrame(raw_data.values)
 out_data = out_data.drop([1], axis=1)
 
@@ -31,4 +31,4 @@ for i, entry in enumerate(out_data[2]):
         pass
 
 out_data.drop(out_data.tail(2).index, inplace=True)
-out_data.to_csv('formatted_data_cher.csv', index=False, header=False)
+out_data.to_csv('formatted_data_09_20.csv', index=False, header=False)

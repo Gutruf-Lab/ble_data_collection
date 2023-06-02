@@ -7,13 +7,18 @@ import sys
 from os import path
 import time
 import warnings
+import datetime as dt
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+# import matplotlib
+# matplotlib.use("TkAgg")
 
 import struct
 from struct import unpack
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
-NUMBER_OF_SAMPLES = 20
+NUMBER_OF_SAMPLES = 12
 NUM_VALS_PER_SAMPLE = 8
 
 GRAVITY_EARTH = 9.80665
@@ -22,10 +27,17 @@ BMI2_GYR_RANGE_2000 = 0
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 
-
-target_ble_address = "80:EA:CA:70:00:05"
+target_ble_address = "80:EA:CA:70:00:11"
 address_hash = ""
 output_file_name = ""
+
+fig, ax = plt.subplots()
+ax.set(ylim=[-10, 10])
+xs = [0]
+ys = [0]
+line, = ax.plot(xs, ys)
+fig.canvas.draw()
+plt.show(block=False)
 
 
 def hash_addresses():
@@ -45,6 +57,11 @@ def hash_addresses():
 
 def six_axis_notification_handler(sender, data):
     global output_file_name
+    global xs
+    global ys
+    global ax
+    global line
+    global fig
     list_of_shorts = list(unpack('h' * (len(data) // 2), data))
     print(list_of_shorts)
     list_of_shorts[NUMBER_OF_SAMPLES] = list_of_shorts[NUMBER_OF_SAMPLES] + 2 ** 16
@@ -60,6 +77,11 @@ def six_axis_notification_handler(sender, data):
         list_of_shorts[4 + offset] = (2000 / ((float((1 << 16) / 2.0)) + BMI2_GYR_RANGE_2000)) * list_of_shorts[4 + offset]
         list_of_shorts[5 + offset] = (2000 / ((float((1 << 16) / 2.0)) + BMI2_GYR_RANGE_2000)) * list_of_shorts[5 + offset]
 
+        # Timestamp values are bytes 11 & 12 + 13 & 14
+        # Convert int16_t to uint16_t
+        list_of_shorts[6 + offset] = int.from_bytes(
+            (data[14 + offset:16 + offset:] + data[12 + offset:14 + offset:]), "little")
+
         packaged_data = {"Time:": [time.time()],
                          "Temperature:": '',
                          "Strain:": '',
@@ -70,15 +92,33 @@ def six_axis_notification_handler(sender, data):
                          'Gyro_X:': list_of_shorts[3 + offset],
                          'Gyro_Y:': list_of_shorts[4 + offset],
                          'Gyro_Z:': list_of_shorts[5 + offset],
-                         'Device Timestamp:': ''}
+                         'Device Timestamp:': list_of_shorts[6 + offset]}
 
-        # Timestamp values are bytes 11 & 12 + 13 & 14
-        # Convert int16_t to uint16_t
-        list_of_shorts[6 + offset] = int.from_bytes(
-            (data[12 + offset:14 + offset:] + data[10 + offset:12 + offset:]), "little")
-
-        packaged_data["Device Timestamp:"] = list_of_shorts[6 + offset]
         print(packaged_data)
+
+
+        # Add x and y to lists
+        xs.append(time.time())
+        ys.append(list_of_shorts[0 + offset])
+        xs = xs[-100:]
+        ys = ys[-100:]
+
+        # print('Xs: ', end='')
+        # print(xs)
+        # print('Ys: ', end='')
+        # print
+        ax.set(xlim=(xs[0], xs[-1]))
+        line.set_xdata(xs)
+        line.set_ydata(ys)
+        ax.draw_artist(ax.patch)
+        ax.draw_artist(line)
+        fig.canvas.blit(ax.bbox)
+        fig.canvas.flush_events()
+
+        # plt.gcf().canvas.draw_idle()
+        # plt.plot(xs, ys)
+        # plt.pause(0.000001)
+        # plt.clf()
 
         new_df = pd.DataFrame(packaged_data)
         new_df.to_csv(output_file_name, index=False, header=False, mode='a')
@@ -105,7 +145,7 @@ async def connect_to_device(address):
                 print("Disconnected callback called!")
                 disconnected_event.set()
 
-            async with BleakClient(devs[0], disconnected_callback=disconnect_callback) as client:
+            async with BleakClient(address, disconnected_callback=disconnect_callback) as client:
 
                 name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
                 print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
@@ -120,7 +160,9 @@ async def connect_to_device(address):
         except BleakError as BLE_Err:
             print(BLE_Err)
             print('----')
-
+        except AttributeError as Att_Err:
+            print(Att_Err)
+            print('----')
 
 def create_csv_if_not_exist(filename_address):
     global output_file_name
@@ -139,7 +181,11 @@ if __name__ == "__main__":
 
     create_csv_if_not_exist(target_ble_address)
 
+    # ani = animation.FuncAnimation(fig=fig, func=update, frames=40, interval=30)
+
     try:
         asyncio.run(connect_to_device(target_ble_address))
     except TimeoutError as e:
         print(e)
+
+
