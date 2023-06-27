@@ -26,12 +26,11 @@ BMI2_GYR_RANGE_2000 = 0
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 
-
 target_ble_address = "80:EA:CA:70:13:03"
 address_hash = ""
 output_file_name = ""
 
-LIVE_DATA_PLOT_ON = False
+LIVE_DATA_PLOT_ON = True
 
 if LIVE_DATA_PLOT_ON:
     # Some preconfig and setup for the plotting
@@ -51,7 +50,7 @@ if LIVE_DATA_PLOT_ON:
     ax.yaxis.set_major_locator(AutoLocator())
     ax.xaxis.set_major_locator(AutoLocator())
 
-    start_time = time.time()
+    last_sample_time = time.time()
     last_refresh_time = 0
 
 
@@ -108,29 +107,33 @@ def ecg_data_handler(sender, data):
     global output_file_name
     global xs
     global ys
-    x = []
-    for i in range(len(data)//4):
-        subselect = data[i*4:i*4+4]
-        subselect = subselect[::-1]
-        x.append(struct.unpack('f', subselect))
+    global last_sample_time
+    y = []
+    num_samples = len(data) // 4
+    dynamic_data_string = f'<{num_samples}i'
+    raw_samples = struct.unpack(dynamic_data_string, data)
 
-    # list_of_shorts = list(unpack('f' * (len(data) // 4), data))
-    # packaged_data = {"Time:": [time.time()],
-    #                  "ECG Reading (mV)": x, "ECG HEX": data.hex()}
-    print("Length: ", len(data), end=' ')
-    print("Data: ", data)
-    print(x)
-    # print(packaged_data)
+    cur_time = time.time()
+    spaced_time = np.linspace(last_sample_time, cur_time, num_samples + 2)[1:-1]
+    last_sample_time = cur_time
 
-    # if LIVE_DATA_PLOT_ON:
-    #     xs.append(time.time() - start_time)
-    #     ys.append(x)
-    #     xs = xs[-200:]
-    #     ys = ys[-200:]
-    #     update_plot(xs, ys)
+    for sample in raw_samples:
+        convert = sample * 1000 / (2 ** 17 * 20)
+        y.append(convert)
 
-    # new_df = pd.DataFrame(packaged_data)
-    # new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+    print("Length (bytes): ", len(data), end=' ')
+    print("Data: ", y)
+
+    if LIVE_DATA_PLOT_ON:
+        xs.extend(spaced_time)
+        ys.extend(y)
+        xs = xs[-200:]
+        ys = ys[-200:]
+        update_plot(xs, ys)
+
+    headers = ["Time:", "ECG Reading (mV)"]
+    new_df = pd.DataFrame(zip(spaced_time, y), columns=headers)
+    new_df.to_csv(output_file_name, index=False, header=False, mode='a')
 
 
 async def connect_to_device(address):
@@ -184,7 +187,7 @@ def create_csv_if_not_exist(filename_address):
     output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
     if not path.exists(output_file_name):
         os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
-        new_file_headers = pd.DataFrame(columns=['Time:', 'ECG Reading (mV)', 'ECG HEX'])
+        new_file_headers = pd.DataFrame(columns=['Time:', 'ECG Reading (mV)'])
         new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
 
 
