@@ -106,7 +106,7 @@ def ppg_notification_handler(sender, data):
                      "ECG ADC Reading": ecg_val,
                      "PPG ADC Reading": ppg_val}
 
-    print(packaged_data)
+    # print(packaged_data)
 
     xs.append(time.time()-start_time)
     ys.append(ppg_val)
