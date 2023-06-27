@@ -27,8 +27,13 @@ BMI2_GYR_RANGE_2000 = 0
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 
-target_ble_address = "80:EA:CA:70:00:06"
-# target_ble_address = "80:EA:CA:70:00:11"
+
+if os.name == 'nt':
+    # addresses = ["80:EA:CA:70:00:07","80:EA:CA:70:00:06", "80:EA:CA:70:00:04"]
+    target_ble_address = "80:EA:CA:70:00:06"
+else:
+    target_ble_address = "566B3E93-17BC-6B3B-0D6B-B8A65441C0BD"
+
 address_hash = ""
 output_file_name = ""
 
@@ -177,8 +182,8 @@ async def connect_to_device(address):
 
             async with BleakClient(address, disconnected_callback=disconnect_callback) as client:
 
-                name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
-                print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
+                # name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
+                # print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
 
                 # 6-Axis IMU Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', six_axis_notification_handler)
@@ -208,7 +213,7 @@ def create_csv_if_not_exist(filename_address):
 
 if __name__ == "__main__":
     connected_devices = 0
-    hash_addresses()
+    # hash_addresses()
 
     create_csv_if_not_exist(target_ble_address)
 

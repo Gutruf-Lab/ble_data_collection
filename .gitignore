@@ -4,3 +4,5 @@ venv/
 __pycache__/*g
 .idea/*
 /SheepWalk.py
+data/*
+.DS_Store
