@@ -27,7 +27,8 @@ DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 
 
-target_ble_address = "80:EA:CA:70:13:03"
+# target_ble_address = "80:EA:CA:70:13:03"
+target_ble_address = "1FFC6F31-984D-5A2F-20FE-6223204ECE65"
 address_hash = ""
 output_file_name = ""
 
@@ -190,7 +191,7 @@ def create_csv_if_not_exist(filename_address):
 
 if __name__ == "__main__":
     connected_devices = 0
-    hash_addresses()
+    # hash_addresses()
 
     create_csv_if_not_exist(target_ble_address)
 
