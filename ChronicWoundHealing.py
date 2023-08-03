@@ -19,9 +19,9 @@ sys.coinit_flags = 2
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 
-target_ble_address = "C5:B6:5F:E3:E1:B5"
-address_hash = ""
+target_ble_address = "40:E0:CA:70:00:01"
 output_file_name = ""
+friendly_name = "CWH1"
 
 # Some preconfig and setup for the plotting
 # fig, ax = plt.subplots(figsize=(12, 10))
@@ -43,21 +43,6 @@ ax.xaxis.set_major_locator(AutoLocator())
 
 start_time = time.time()
 last_refresh_time = 0
-
-
-def hash_addresses():
-    global address_hash
-
-    address_byte_array = bytearray.fromhex(target_ble_address.replace(":", ""))
-    address_byte_array.reverse()
-    # Initialize with some random large-ish prime
-    hashed_address = 5381
-
-    for b in address_byte_array:
-        hashed_address = ((hashed_address << 5) + hashed_address) + b
-        hashed_address &= 0xFFFF
-
-    address_hash = hashed_address
 
 
 def update_plot(x_data, y_data):
@@ -98,24 +83,25 @@ def ppg_notification_handler(sender, data):
     global output_file_name
     global xs
     global ys
-
-    [x] = struct.unpack('{}s'.format(len(data)), data)
-    data_str = x.decode('utf-8')
-    ecg_val = int(data_str.split(sep=',')[1])
-    ppg_val = int(data_str.split(sep=',')[2])
-
-    # print(packaged_data)
+    print(data)
+    x = struct.unpack('<III'.format(len(data)), data)
+    # data_str = x.decode('utf-8')
+    red_led = x[0]
+    ir_led = x[1]
+    green_led = x[2]
 
     xs.append(time.time()-start_time)
-    ys.append(ppg_val)
+    ys.append(red_led)
     xs = xs[-100:]
     ys = ys[-100:]
     update_plot(xs, ys)
 
     packaged_data = {"Time:": [time.time()],
-                     "ECG ADC:": ecg_val,
-                     "PPG ADC:": ppg_val
+                     "Red LED:": red_led,
+                     "IR LED:": ir_led,
+                     "Green LED:": green_led,
                      }
+    print(packaged_data)
 
     new_df = pd.DataFrame(packaged_data)
     new_df.to_csv(output_file_name, index=False, header=False, mode='a')
@@ -143,12 +129,22 @@ async def connect_to_device(address):
                 disconnected_event.set()
 
             async with BleakClient(address, disconnected_callback=disconnect_callback) as client:
+                while not client.is_connected:
+                    continue
 
-                name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
-                print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
+                # name = await client.read_gatt_char("2A24")
+                # print(f'\nConnected to device {address} ({name.decode(encoding="utf-8")})')
 
+                for s in client.services:
+                    for char in s.characteristics:
+                        # print('Characteristic: {0}'.format(await client.get_all_for_characteristic(char)))
+                        print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
+
+                # name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
+                # print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
+                # {0x21, 0xEE, 0x8D, 0x0C, 0xE1, 0xF0, 0x4A, 0x0C, 0xB3, 0x25, 0xDC, 0x53, 0x6A, 0x68, 0x86, 0x2B}
                 # ECG/PPG String Data
-                await client.start_notify('6e400003-b5a3-f393-e0a9-e50e24dcca9e', ppg_notification_handler)
+                await client.start_notify('2b86686a-53dc-25b3-0c4a-f0e10c8dee25', ppg_notification_handler)
                 await disconnected_event.wait()
 
         except asyncio.exceptions.TimeoutError as TimeErr:
@@ -164,16 +160,17 @@ async def connect_to_device(address):
 
 def create_csv_if_not_exist(filename_address):
     global output_file_name
-    output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
+    local_time_string = time.strftime("%Y_%m_%d__%H_%M_%S", time.localtime())
+    output_file_name = f'{DATA_FILE_PATH}{friendly_name}_{local_time_string}.csv'
     if not path.exists(output_file_name):
         os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
-        new_file_headers = pd.DataFrame(columns=['Time:', 'ECG ADC:', 'PPG ADC:'])
+        new_file_headers = pd.DataFrame(columns=['Time:', "Red LED:", "IR LED:", "Green LED:"])
         new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
+
 
 
 if __name__ == "__main__":
     connected_devices = 0
-    hash_addresses()
 
     create_csv_if_not_exist(target_ble_address)
 

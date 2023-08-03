@@ -15,7 +15,7 @@ from struct import unpack
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
-friendly_name = "K-Bot LT"
+friendly_name = "K-Bot LT_test"
 
 stream_data = {}
 battery_reading = 0
@@ -30,7 +30,7 @@ DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable/"
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable")
 
 if os.name == 'nt':
-    target_address = "80:EA:CA:70:00:05"
+    target_address = "64:66:F8:2A:A3:46"
 else:
     target_address = "C6935114-E190-9B4F-2946-4B54D7B9F32E"
 
@@ -72,11 +72,13 @@ def nfc_tag_notification_handler(sender, data):
 async def connect_to_device(address):
     global connected_devices
     global battery_reading
+    found_devices = []
     while True:
         try:
-            devices = await BleakScanner.discover(timeout=2)
+            devices = await BleakScanner.discover(timeout=1)
             for d in devices:
-                print(d)
+                if d.name not in ['Apple, Inc.', 'EarStudio']:
+                    print(d)
                 if d.address == address:
                     print('****')
                     print('Device found.')
