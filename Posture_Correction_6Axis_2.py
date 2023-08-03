@@ -27,8 +27,8 @@ BMI2_GYR_RANGE_2000 = 0
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 
-# target_ble_address = "80:EA:CA:70:00:06"
-target_ble_address = "80:EA:CA:70:00:07"
+target_ble_address = "80:EA:CA:70:00:06"
+# target_ble_address = "80:EA:CA:70:00:07"
 address_hash = ""
 output_file_name = ""
 
@@ -141,7 +141,7 @@ def six_axis_notification_handler2(sender, data):
                          'Gyro_Z:': list_of_shorts[5 + offset],
                          'Device Timestamp:': list_of_shorts[6 + offset]}
 
-        print(packaged_data)
+        # print(packaged_data)
 
         if LIVE_DATA_PLOT_ON:
             xs.append(time.time() - start_time)
