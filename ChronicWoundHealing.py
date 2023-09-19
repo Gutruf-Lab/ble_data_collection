@@ -43,6 +43,7 @@ ax.xaxis.set_major_locator(AutoLocator())
 
 start_time = time.time()
 last_refresh_time = 0
+last_humid_therm_read_time = time.time();
 
 
 def update_plot(x_data, y_data):
@@ -100,6 +101,44 @@ def ppg_notification_handler(sender, data):
                      "Red LED:": red_led,
                      "IR LED:": ir_led,
                      "Green LED:": green_led,
+                     "Thermal conductivity:": '',
+                     "Humidity:": ''
+                     }
+    print(packaged_data)
+
+    new_df = pd.DataFrame(packaged_data)
+    new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+
+
+def humid_notification_handler(sender, data):
+    global output_file_name
+    print(data)
+    humid_reading = struct.unpack('<h'.format(len(data)), data)[0]
+
+    packaged_data = {"Time:": [time.time()],
+                     "Red LED:": '',
+                     "IR LED:": '',
+                     "Green LED:": '',
+                     "Thermal conductivity:": '',
+                     "Humidity:": humid_reading
+                     }
+    print(packaged_data)
+
+    new_df = pd.DataFrame(packaged_data)
+    new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+
+
+def therm_notification_handler(sender, data):
+    global output_file_name
+    print(data)
+    therm_reading = struct.unpack('<h'.format(len(data)), data)[0]
+
+    packaged_data = {"Time:": [time.time()],
+                     "Red LED:": '',
+                     "IR LED:": '',
+                     "Green LED:": '',
+                     "Thermal conductivity:": therm_reading,
+                     "Humidity:": ''
                      }
     print(packaged_data)
 
@@ -108,6 +147,8 @@ def ppg_notification_handler(sender, data):
 
 
 async def connect_to_device(address):
+    global last_humid_therm_read_time
+    global output_file_name
     while True:
         try:
             devs = await discover(timeout=2)
@@ -145,6 +186,9 @@ async def connect_to_device(address):
                 # {0x21, 0xEE, 0x8D, 0x0C, 0xE1, 0xF0, 0x4A, 0x0C, 0xB3, 0x25, 0xDC, 0x53, 0x6A, 0x68, 0x86, 0x2B}
                 # ECG/PPG String Data
                 await client.start_notify('2b86686a-53dc-25b3-0c4a-f0e10c8dee25', ppg_notification_handler)
+                await client.start_notify('2d86686a-53dc-25b3-0c4a-f0e10c8dee12', therm_notification_handler)
+                await client.start_notify('2d86686a-53dc-25b3-0c4a-f0e10c8dee22', humid_notification_handler)
+
                 await disconnected_event.wait()
 
         except asyncio.exceptions.TimeoutError as TimeErr:
@@ -164,9 +208,9 @@ def create_csv_if_not_exist(filename_address):
     output_file_name = f'{DATA_FILE_PATH}{friendly_name}_{local_time_string}.csv'
     if not path.exists(output_file_name):
         os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
-        new_file_headers = pd.DataFrame(columns=['Time:', "Red LED:", "IR LED:", "Green LED:"])
+        new_file_headers = pd.DataFrame(columns=['Time:', "Red LED:", "IR LED:", "Green LED:",
+                                                 "Thermal conductivity:", "Humidity:"])
         new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
-
 
 
 if __name__ == "__main__":
