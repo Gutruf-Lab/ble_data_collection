@@ -44,6 +44,7 @@ ax.xaxis.set_major_locator(AutoLocator())
 start_time = time.time()
 last_refresh_time = 0
 last_humid_therm_read_time = time.time();
+initial_sample_time = time.time()
 
 
 def update_plot(x_data, y_data):
@@ -130,25 +131,36 @@ def humid_notification_handler(sender, data):
 
 def therm_notification_handler(sender, data):
     global output_file_name
+    global last_sample_time
     print(data)
-    therm_reading = struct.unpack('<h'.format(len(data)), data)[0]
+    y = []
+    num_samples = len(data) // 2
+    dynamic_data_string = f'<{num_samples}h'
+    raw_samples = struct.unpack(dynamic_data_string, data)
+    cur_time = time.time()
+    if num_samples > 1:
+        spaced_time = np.linspace(last_sample_time, cur_time, num_samples + 2)[1:-1]
+    else:
+        spaced_time = [time.time()]
+        raw_samples = raw_samples[0]
 
-    packaged_data = {"Time:": [time.time()],
+    packaged_data = {"Time:": spaced_time,
                      "Red LED:": '',
                      "IR LED:": '',
                      "Green LED:": '',
-                     "Thermal conductivity:": therm_reading,
+                     "Thermal conductivity:": raw_samples,
                      "Humidity:": ''
                      }
     print(packaged_data)
-
     new_df = pd.DataFrame(packaged_data)
     new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+    last_sample_time = cur_time
 
 
 async def connect_to_device(address):
     global last_humid_therm_read_time
     global output_file_name
+    global last_sample_time
     while True:
         try:
             devs = await discover(timeout=2)
@@ -186,9 +198,9 @@ async def connect_to_device(address):
                 # {0x21, 0xEE, 0x8D, 0x0C, 0xE1, 0xF0, 0x4A, 0x0C, 0xB3, 0x25, 0xDC, 0x53, 0x6A, 0x68, 0x86, 0x2B}
                 # ECG/PPG String Data
                 await client.start_notify('2b86686a-53dc-25b3-0c4a-f0e10c8dee25', ppg_notification_handler)
-                await client.start_notify('2d86686a-53dc-25b3-0c4a-f0e10c8dee12', therm_notification_handler)
                 await client.start_notify('2d86686a-53dc-25b3-0c4a-f0e10c8dee22', humid_notification_handler)
-
+                last_sample_time = time.time()
+                await client.start_notify('2d86686a-53dc-25b3-0c4a-f0e10c8dee12', therm_notification_handler)
                 await disconnected_event.wait()
 
         except asyncio.exceptions.TimeoutError as TimeErr:

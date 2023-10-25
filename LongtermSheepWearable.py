@@ -75,7 +75,7 @@ async def connect_to_device(address):
     found_devices = []
     while True:
         try:
-            devices = await BleakScanner.discover(timeout=1)
+            devices = await BleakScanner.discover(timeout=3)
             for d in devices:
                 if d.name not in ['Apple, Inc.', 'EarStudio']:
                     print(d)
