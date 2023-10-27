@@ -15,7 +15,7 @@ from struct import unpack
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
-friendly_name = "BonkFix"
+friendly_name = "K-Bot LT"
 
 stream_data = {}
 battery_reading = 0
@@ -26,14 +26,13 @@ LED_PIN = 27
 # GPIO.setmode(GPIO.BCM)
 # GPIO.setup(LED_PIN, GPIO.OUT)
 pin_flash_cycle_duration = 0
-DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable/")
-DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable")
+DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/averytest/")
+DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/averytest")
 
 if os.name == 'nt':
     target_address = "80:EA:CA:70:00:05"
 else:
-    target_address = "BC7C0E95-81FD-451E-2197-52D1FCAFF991"  # BonkFix
-    # target_address = "02397A94-8E08-970E-8E45-C02D8F8FE79E"
+    target_address = "02397A94-8E08-970E-8E45-C02D8F8FE79E"
     # target_address = "C6935114-E190-9B4F-2946-4B54D7B9F32E"
     # dania_device = "536AC7CF-184F-E6E5-5578-73AC1348DFA7"
 
@@ -144,7 +143,7 @@ async def connect_to_device(address):
 def create_csv_if_not_exist(filename_address):
     global output_file_name
     local_time_string = time.strftime("%Y_%m_%d__%H_%M_%S", time.localtime())
-    output_file_name = f'{DATA_FILE_PATH}{friendly_name}_{local_time_string}.csv'
+    output_file_name = f'{DATA_FILE_PATH}{friendly_name}_leg_{local_time_string}.csv'
     if not path.exists(output_file_name):
         os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
         new_file_headers = pd.DataFrame(columns=['Received timestamp:',  'Battery (mV):', 'Streamed Data:'])
