@@ -30,7 +30,7 @@ DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable/"
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable")
 
 if os.name == 'nt':
-    target_address = "80:EA:CA:70:00:05"
+    target_address = "64:66:F8:2A:A3:46"
 else:
     target_address = "BC7C0E95-81FD-451E-2197-52D1FCAFF991"  # BonkFix
     # target_address = "02397A94-8E08-970E-8E45-C02D8F8FE79E"
@@ -75,11 +75,13 @@ def nfc_tag_notification_handler(sender, data):
 async def connect_to_device(address):
     global connected_devices
     global battery_reading
+    found_devices = []
     while True:
         try:
-            devices = await BleakScanner.discover(timeout=2)
+            devices = await BleakScanner.discover(timeout=3)
             for d in devices:
-                print(d)
+                if d.name not in ['Apple, Inc.', 'EarStudio']:
+                    print(d)
                 if d.address == address:
                     print('****')
                     print('Device found.')
