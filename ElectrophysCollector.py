@@ -20,8 +20,12 @@ sys.coinit_flags = 2
 NUMBER_OF_SAMPLES = 20
 NUM_VALS_PER_SAMPLE = 8
 
-GRAVITY_EARTH = 9.80665
-BMI2_GYR_RANGE_2000 = 0
+# Adjust according to the register settings you have already written into DA14531 firmware
+# Adjusting these does nothing except mess up your data if you haven't changed them already in the firmware
+ECG_GAIN = 20  # 20 Volts/V
+BIOZ_CGMAG = 32 * (10 ** -6)  # 32 * 10^-6 = 32uA
+BIOZ_GAIN = 10  # 10 V/V
+
 
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
@@ -133,6 +137,39 @@ def ecg_data_handler(sender, data):
         update_plot(xs, ys)
 
     headers = ["Time:", "ECG Reading (mV)"]
+    new_df = pd.DataFrame(zip(spaced_time, y), columns=headers)
+    new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+
+
+def bioz_data_handler(sender, data):
+    global output_file_name
+    global xs
+    global ys
+    global last_sample_time
+    y = []
+    num_samples = len(data) // 4
+    dynamic_data_string = f'<{num_samples}i'
+    raw_samples = struct.unpack(dynamic_data_string, data)
+
+    cur_time = time.time()
+    spaced_time = np.linspace(last_sample_time, cur_time, num_samples + 2)[1:-1]
+    last_sample_time = cur_time
+
+    for sample in raw_samples:
+        convert = sample * 1000 / ((2 ** 19) * BIOZ_CGMAG * BIOZ_GAIN)
+        y.append(convert)
+
+    print("Length (bytes): ", len(data), end=' ')
+    print("Data: ", y)
+
+    if LIVE_DATA_PLOT_ON:
+        xs.extend(spaced_time)
+        ys.extend(y)
+        xs = xs[-200:]
+        ys = ys[-200:]
+        update_plot(xs, ys)
+
+    headers = ["Time:", 'BioZ Reading (mV)']
     new_df = pd.DataFrame(zip(spaced_time, y), columns=headers)
     new_df.to_csv(output_file_name, index=False, header=False, mode='a')
 

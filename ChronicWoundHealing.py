@@ -23,28 +23,34 @@ target_ble_address = "40:E0:CA:70:00:01"
 output_file_name = ""
 friendly_name = "CWH1"
 
-# Some preconfig and setup for the plotting
-# fig, ax = plt.subplots(figsize=(12, 10))
-fig, ax = plt.subplots()
-xs = [0]
-ys = [0]
-line, = ax.plot(xs, ys)
-
-# In order to do high speed plotting we use a technique called blitting where we cache the frame and only render what
-# has changed since the last frame. Otherwise we have to re-render everything each time we update the graph.
-# I create the canvas without any tickmarks and cache that to use later. Then I
-# restore the tickmarks with the default AutoLocator from matplotlib
-ax.set(yticks=[], xticks=[])
-fig.canvas.draw()
-plt.show(block=False)
-background = fig.canvas.copy_from_bbox(fig.bbox)
-ax.yaxis.set_major_locator(AutoLocator())
-ax.xaxis.set_major_locator(AutoLocator())
-
 start_time = time.time()
 last_refresh_time = 0
 last_humid_therm_read_time = time.time();
 initial_sample_time = time.time()
+
+LIVE_DATA_PLOT_ON = False
+
+if LIVE_DATA_PLOT_ON:
+    # Some preconfig and setup for the plotting
+    # fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots()
+    xs = [0]
+    ys = [0]
+    line, = ax.plot(xs, ys)
+
+    # In order to do high speed plotting we use a technique called blitting where we cache the frame and only render what
+    # has changed since the last frame. Otherwise we have to re-render everything each time we update the graph.
+    # I create the canvas without any tickmarks and cache that to use later. Then I
+    # restore the tickmarks with the default AutoLocator from matplotlib
+    ax.set(yticks=[], xticks=[])
+    fig.canvas.draw()
+    plt.show(block=False)
+    background = fig.canvas.copy_from_bbox(fig.bbox)
+    ax.yaxis.set_major_locator(AutoLocator())
+    ax.xaxis.set_major_locator(AutoLocator())
+
+    last_sample_time = time.time()
+    last_refresh_time = 0
 
 
 def update_plot(x_data, y_data):
@@ -92,11 +98,12 @@ def ppg_notification_handler(sender, data):
     ir_led = x[1]
     green_led = x[2]
 
-    xs.append(time.time()-start_time)
-    ys.append(red_led)
-    xs = xs[-100:]
-    ys = ys[-100:]
-    update_plot(xs, ys)
+    if LIVE_DATA_PLOT_ON:
+        xs.append(time.time()-start_time)
+        ys.append(red_led)
+        xs = xs[-100:]
+        ys = ys[-100:]
+        update_plot(xs, ys)
 
     packaged_data = {"Time:": [time.time()],
                      "Red LED:": red_led,
@@ -152,6 +159,7 @@ def therm_notification_handler(sender, data):
                      "Humidity:": ''
                      }
     print(packaged_data)
+
     new_df = pd.DataFrame(packaged_data)
     new_df.to_csv(output_file_name, index=False, header=False, mode='a')
     last_sample_time = cur_time
