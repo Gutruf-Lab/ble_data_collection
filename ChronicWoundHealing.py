@@ -23,26 +23,34 @@ target_ble_address = "40:E0:CA:70:00:01"
 output_file_name = ""
 friendly_name = "CWH1"
 
-# Some preconfig and setup for the plotting
-# fig, ax = plt.subplots(figsize=(12, 10))
-fig, ax = plt.subplots()
-xs = [0]
-ys = [0]
-line, = ax.plot(xs, ys)
-
-# In order to do high speed plotting we use a technique called blitting where we cache the frame and only render what
-# has changed since the last frame. Otherwise we have to re-render everything each time we update the graph.
-# I create the canvas without any tickmarks and cache that to use later. Then I
-# restore the tickmarks with the default AutoLocator from matplotlib
-ax.set(yticks=[], xticks=[])
-fig.canvas.draw()
-plt.show(block=False)
-background = fig.canvas.copy_from_bbox(fig.bbox)
-ax.yaxis.set_major_locator(AutoLocator())
-ax.xaxis.set_major_locator(AutoLocator())
-
 start_time = time.time()
 last_refresh_time = 0
+last_humid_therm_read_time = time.time();
+initial_sample_time = time.time()
+
+LIVE_DATA_PLOT_ON = False
+
+if LIVE_DATA_PLOT_ON:
+    # Some preconfig and setup for the plotting
+    # fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots()
+    xs = [0]
+    ys = [0]
+    line, = ax.plot(xs, ys)
+
+    # In order to do high speed plotting we use a technique called blitting where we cache the frame and only render what
+    # has changed since the last frame. Otherwise we have to re-render everything each time we update the graph.
+    # I create the canvas without any tickmarks and cache that to use later. Then I
+    # restore the tickmarks with the default AutoLocator from matplotlib
+    ax.set(yticks=[], xticks=[])
+    fig.canvas.draw()
+    plt.show(block=False)
+    background = fig.canvas.copy_from_bbox(fig.bbox)
+    ax.yaxis.set_major_locator(AutoLocator())
+    ax.xaxis.set_major_locator(AutoLocator())
+
+    last_sample_time = time.time()
+    last_refresh_time = 0
 
 
 def update_plot(x_data, y_data):
@@ -90,16 +98,19 @@ def ppg_notification_handler(sender, data):
     ir_led = x[1]
     green_led = x[2]
 
-    xs.append(time.time()-start_time)
-    ys.append(red_led)
-    xs = xs[-100:]
-    ys = ys[-100:]
-    update_plot(xs, ys)
+    if LIVE_DATA_PLOT_ON:
+        xs.append(time.time()-start_time)
+        ys.append(red_led)
+        xs = xs[-100:]
+        ys = ys[-100:]
+        update_plot(xs, ys)
 
     packaged_data = {"Time:": [time.time()],
                      "Red LED:": red_led,
                      "IR LED:": ir_led,
                      "Green LED:": green_led,
+                     "Thermal conductivity:": '',
+                     "Humidity:": ''
                      }
     print(packaged_data)
 
@@ -107,7 +118,57 @@ def ppg_notification_handler(sender, data):
     new_df.to_csv(output_file_name, index=False, header=False, mode='a')
 
 
+def humid_notification_handler(sender, data):
+    global output_file_name
+    print(data)
+    humid_reading = struct.unpack('<h'.format(len(data)), data)[0]
+
+    packaged_data = {"Time:": [time.time()],
+                     "Red LED:": '',
+                     "IR LED:": '',
+                     "Green LED:": '',
+                     "Thermal conductivity:": '',
+                     "Humidity:": humid_reading
+                     }
+    print(packaged_data)
+
+    new_df = pd.DataFrame(packaged_data)
+    new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+
+
+def therm_notification_handler(sender, data):
+    global output_file_name
+    global last_sample_time
+    print(data)
+    y = []
+    num_samples = len(data) // 2
+    dynamic_data_string = f'<{num_samples}h'
+    raw_samples = struct.unpack(dynamic_data_string, data)
+    cur_time = time.time()
+    if num_samples > 1:
+        spaced_time = np.linspace(last_sample_time, cur_time, num_samples + 2)[1:-1]
+    else:
+        spaced_time = [time.time()]
+        raw_samples = raw_samples[0]
+
+    packaged_data = {"Time:": spaced_time,
+                     "Red LED:": '',
+                     "IR LED:": '',
+                     "Green LED:": '',
+                     "Thermal conductivity:": raw_samples,
+                     "Humidity:": ''
+                     }
+    print(packaged_data)
+
+    new_df = pd.DataFrame(packaged_data)
+    new_df.to_csv(output_file_name, index=False, header=False, mode='a')
+    last_sample_time = cur_time
+
+
 async def connect_to_device(address):
+    global last_humid_therm_read_time
+    global output_file_name
+    global last_sample_time
     while True:
         try:
             devs = await discover(timeout=2)
@@ -145,6 +206,9 @@ async def connect_to_device(address):
                 # {0x21, 0xEE, 0x8D, 0x0C, 0xE1, 0xF0, 0x4A, 0x0C, 0xB3, 0x25, 0xDC, 0x53, 0x6A, 0x68, 0x86, 0x2B}
                 # ECG/PPG String Data
                 await client.start_notify('2b86686a-53dc-25b3-0c4a-f0e10c8dee25', ppg_notification_handler)
+                await client.start_notify('2d86686a-53dc-25b3-0c4a-f0e10c8dee22', humid_notification_handler)
+                last_sample_time = time.time()
+                await client.start_notify('2d86686a-53dc-25b3-0c4a-f0e10c8dee12', therm_notification_handler)
                 await disconnected_event.wait()
 
         except asyncio.exceptions.TimeoutError as TimeErr:
@@ -164,9 +228,9 @@ def create_csv_if_not_exist(filename_address):
     output_file_name = f'{DATA_FILE_PATH}{friendly_name}_{local_time_string}.csv'
     if not path.exists(output_file_name):
         os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
-        new_file_headers = pd.DataFrame(columns=['Time:', "Red LED:", "IR LED:", "Green LED:"])
+        new_file_headers = pd.DataFrame(columns=['Time:', "Red LED:", "IR LED:", "Green LED:",
+                                                 "Thermal conductivity:", "Humidity:"])
         new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
-
 
 
 if __name__ == "__main__":
