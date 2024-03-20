@@ -15,22 +15,24 @@ from struct import unpack
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
-friendly_name = "BonkFix"
+friendly_name = "K BotLT"
 
 stream_data = {}
 battery_reading = 0
 battery_read = False
 output_file_name = ''
 LED_PIN = 27
+addresses = []
 
-# GPIO.setmode(GPIO.BCM)
+# GPIO.setmode(GPIO.BCM0x
 # GPIO.setup(LED_PIN, GPIO.OUT)
 pin_flash_cycle_duration = 0
-DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable/")
-DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable")
+DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable/2024/")
+DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable/2024/")
 
 if os.name == 'nt':
-    target_address = "64:66:F8:2A:A3:46"
+    target_address = "5E:B4:EF:EA:56:4D"
+    target_name = "K BotLT"
 else:
     target_address = "BC7C0E95-81FD-451E-2197-52D1FCAFF991"  # BonkFix
     # target_address = "02397A94-8E08-970E-8E45-C02D8F8FE79E"
@@ -72,17 +74,23 @@ def nfc_tag_notification_handler(sender, data):
     df.to_csv(output_file_name, index=False, header=False, mode='a')
 
 
-async def connect_to_device(address):
+async def connect_to_device(target_name):
     global connected_devices
     global battery_reading
     found_devices = []
+    address = None
     while True:
         try:
             devices = await BleakScanner.discover(timeout=3)
             for d in devices:
-                if d.name not in ['Apple, Inc.', 'EarStudio']:
-                    print(d)
-                if d.address == address:
+                # if d.name not in ['Apple, Inc.', 'EarStudio']:
+                    # if d.address not in addresses:
+                    #     addresses.append(d.address)
+                print(d)
+                if len(d.metadata["uuids"]) > 0:
+                    print(f'\t{d.metadata["uuids"]}')
+                if d.name and d.name == target_name:
+                    address = d.address
                     print('****')
                     print('Device found.')
                     print("Attempting connection to " + address + "...")
@@ -94,46 +102,53 @@ async def connect_to_device(address):
             def disconnect_callback(client):
                 print("Disconnected callback called!")
                 disconnected_event.set()
+            if address is not None:
+                async with BleakClient(address, disconnected_callback=disconnect_callback) as client:
+                    while not client.is_connected:
+                        continue
+                    start_time = time.time()
+                    # name = await client.read_gatt_char("2A24")
+                    # print(f'\nConnected to device {address} ({name.decode(encoding="utf-8")})')
 
-            async with BleakClient(address, disconnected_callback=disconnect_callback) as client:
-                while not client.is_connected:
-                    continue
-                start_time = time.time()
-                # name = await client.read_gatt_char("2A24")
-                # print(f'\nConnected to device {address} ({name.decode(encoding="utf-8")})')
+                    for s in client.services:
+                        for char in s.characteristics:
+                            # print('Characteristic: {0}'.format(await client.get_all_for_characteristic(char)))
+                            print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
+                            # characteristic_names[char.handle] = (char.description + ':')
+                    # name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
+                    # print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
 
-                for s in client.services:
-                    for char in s.characteristics:
-                        # print('Characteristic: {0}'.format(await client.get_all_for_characteristic(char)))
-                        print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
-                        # characteristic_names[char.handle] = (char.description + ':')
-                # name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
-                # print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
+                    # Read Battery Level
+                    battery_reading = await client.read_gatt_char('0000fe43-8e22-4541-9d4c-21edae82ed19')
+                    battery_reading = unpack('h' * (len(battery_reading) // 2), battery_reading)[0]
+                    print(f"Battery level: {battery_reading}")
+                    # Raw NFC Data
+                    await client.start_notify('0000fe44-8e22-4541-9d4c-21edae82ed19', nfc_tag_notification_handler)
+                    await asyncio.sleep(20)
+                    await client.stop_notify('0000fe44-8e22-4541-9d4c-21edae82ed19')
+                    await asyncio.sleep(1)
+                    if not battery_read:
+                        df = pd.DataFrame.from_dict({"Received Timestamp:": start_time,
+                                                     "Battery (mV):": battery_reading,
+                                                     "Streamed Data:": '',
+                                                     }, orient='index')
+                        df = df.transpose()
+                        df.to_csv(output_file_name, index=False, header=False, mode='a')
 
-                # Read Battery Level
-                battery_reading = await client.read_gatt_char('0000fe43-8e22-4541-9d4c-21edae82ed19')
-                battery_reading = unpack('h' * (len(battery_reading) // 2), battery_reading)[0]
-                print(f"Battery level: {battery_reading}")
-                # Raw NFC Data
-                await client.start_notify('0000fe44-8e22-4541-9d4c-21edae82ed19', nfc_tag_notification_handler)
-                await asyncio.sleep(20)
-                await client.disconnect()
-                if not battery_read:
-                    df = pd.DataFrame.from_dict({"Received Timestamp:": start_time,
+                    # Read Battery Level
+                    battery_reading = await client.read_gatt_char('0000fe43-8e22-4541-9d4c-21edae82ed19')
+                    battery_reading = unpack('h' * (len(battery_reading) // 2), battery_reading)[0]
+
+                    df = pd.DataFrame.from_dict({"Received Timestamp:": time.time(),
                                                  "Battery (mV):": battery_reading,
                                                  "Streamed Data:": '',
                                                  }, orient='index')
                     df = df.transpose()
                     df.to_csv(output_file_name, index=False, header=False, mode='a')
 
-                df = pd.DataFrame.from_dict({"Received Timestamp:": time.time(),
-                                             "Battery (mV):": '',
-                                             "Streamed Data:": '',
-                                             }, orient='index')
-                df = df.transpose()
-                df.to_csv(output_file_name, index=False, header=False, mode='a')
-                break
-                # await disconnected_event.wait()
+                    await client.disconnect()
+                    break
+                    # await disconnected_event.wait()
 
         except asyncio.exceptions.TimeoutError as e:
             print(e)
@@ -161,6 +176,6 @@ if __name__ == "__main__":
     create_csv_if_not_exist(target_address)
 
     try:
-        asyncio.run(connect_to_device(address=target_address))
+        asyncio.run(connect_to_device(target_name=target_name))
     except TimeoutError as e:
         print(e)
