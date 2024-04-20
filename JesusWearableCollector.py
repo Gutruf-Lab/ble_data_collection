@@ -15,7 +15,7 @@ from struct import unpack
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
-friendly_name = "K BotLT2"
+friendly_name = "Dania RD"
 
 stream_data = {}
 battery_reading = 0
@@ -25,12 +25,12 @@ LED_PIN = 27
 addresses = []
 
 pin_flash_cycle_duration = 0
-DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable/2024_april_dipole/")
-DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/ltsheepwearable/2024_april_dipole/")
+DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/jesus_datacollection/circular_nfc/")
+DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/jesus_datacollection/circular_nfc/")
 
 if os.name == 'nt':
     target_address = "5E:B4:EF:EA:56:4D"
-    target_name = "K BotLT2"
+    target_name = "Dania RD"
 else:
     target_address = "BC7C0E95-81FD-451E-2197-52D1FCAFF991"  # BonkFix
 
@@ -109,33 +109,9 @@ async def connect_to_device(target_name):
                     # print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
 
                     # Read Battery Level
-                    battery_reading = await client.read_gatt_char('0000fe43-8e22-4541-9d4c-21edae82ed19')
-                    battery_reading = unpack('h' * (len(battery_reading) // 2), battery_reading)[0]
-                    print(f"Battery level: {battery_reading}")
                     # Raw NFC Data
                     await client.start_notify('0000fe44-8e22-4541-9d4c-21edae82ed19', nfc_tag_notification_handler)
                     await asyncio.sleep(20)
-                    await client.stop_notify('0000fe44-8e22-4541-9d4c-21edae82ed19')
-                    await asyncio.sleep(4)
-                    if not battery_read:
-                        df = pd.DataFrame.from_dict({"Received Timestamp:": start_time,
-                                                     "Battery (mV):": battery_reading,
-                                                     "Streamed Data:": '',
-                                                     }, orient='index')
-                        df = df.transpose()
-                        df.to_csv(output_file_name, index=False, header=False, mode='a')
-
-                    # Read Battery Level
-                    battery_reading = await client.read_gatt_char('0000fe43-8e22-4541-9d4c-21edae82ed19')
-                    battery_reading = unpack('h' * (len(battery_reading) // 2), battery_reading)[0]
-
-                    df = pd.DataFrame.from_dict({"Received Timestamp:": time.time(),
-                                                 "Battery (mV):": battery_reading,
-                                                 "Streamed Data:": '',
-                                                 }, orient='index')
-                    df = df.transpose()
-                    df.to_csv(output_file_name, index=False, header=False, mode='a')
-                    print(f"Battery level: {battery_reading}")
 
                     await client.disconnect()
                     break
