@@ -13,6 +13,7 @@ import os
 import sys
 import time
 from struct import unpack
+from os import path
 
 # Necessary apparently for multithreading in python. Feel free to optimize.
 sys.coinit_flags = 2
@@ -20,39 +21,48 @@ sys.coinit_flags = 2
 connected_devices = 0
 NUMBER_OF_READINGS = 12
 
-DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
-DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
+
+friendly_name = "Dania RD"
+target_name = "Dania RD"
+output_file_name = ''
+
+pin_flash_cycle_duration = 0
+DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/")
+DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/")
+
 
 if os.name == 'nt':
     # addresses = ["80:EA:CA:70:00:01", "80:EA:CA:70:00:02", "80:EA:CA:70:00:05"]
     addresses = ["80:EA:CA:70:00:05"]
 else:
-    addresses = []
+    target_address = "0362563D-F2AB-7ECD-0EB0-FD65F64433B4"
 
 address_hashes = {}
 address_filePaths = {}
 
 
-def hash_addresses():
-    global addresses
-    for device_address in addresses:
-        address_byte_array = bytearray.fromhex(device_address.replace(":", ""))
-        address_byte_array.reverse()
-
-        # Initialize with some random large-ish prime
-        hashed_address = 5381
-
-        # This is the djb2 hashing algorithm. We don't need security or cryptographic hashing, just string mapping.
-        # See more: http://www.cse.yorku.ca/~oz/hash.html
-        for b in address_byte_array:
-            hashed_address = ((hashed_address << 5) + hashed_address) + b
-            hashed_address &= 0xFFFF
-
-        address_hashes[device_address] = hashed_address
+# def hash_addresses():
+#     global addresses
+#     for device_address in addresses:
+#         address_byte_array = bytearray.fromhex(device_address.replace(":", ""))
+#         address_byte_array.reverse()
+#
+#         # Initialize with some random large-ish prime
+#         hashed_address = 5381
+#
+#         # This is the djb2 hashing algorithm. We don't need security or cryptographic hashing, just string mapping.
+#         # See more: http://www.cse.yorku.ca/~oz/hash.html
+#         for b in address_byte_array:
+#             hashed_address = ((hashed_address << 5) + hashed_address) + b
+#             hashed_address &= 0xFFFF
+#
+#         address_hashes[device_address] = hashed_address
 
 
 def gait_notification_handler(sender, data):
     global connected_devices
+    global output_file_name
+
     if connected_devices == len(address_hashes):
         list_of_shorts = list(unpack('h' * (len(data) // 2), data))
         # print(data)
@@ -85,10 +95,10 @@ def gait_notification_handler(sender, data):
             list_of_shorts[2 + i*4] = int.from_bytes((data[6 + i * 8:8 + i * 8:] + data[4 + i * 8:6 + i * 8:]), "little")
             packaged_data["Device Timestamp:"] = list_of_shorts[2 + i*4]
             # print("List of Shorts:", list_of_shorts)
-            # print("Packaged Data:", packaged_data)
+            print("Packaged Data:", packaged_data)
 
             # Write processed and packaged data out to file
-            output_file_name = address_filePaths[device_address]
+            # output_file_name = address_filePaths[device_address]
             # print(output_file_name)
             # print(packaged_data)
             new_df = pd.DataFrame(packaged_data)
@@ -98,11 +108,12 @@ def gait_notification_handler(sender, data):
         pass
 
 
-async def connect_to_device(event_loop, device_address):
+async def connect_to_device(device_address):
     global connected_devices
+    address = None
     while True:
         try:
-            print("Attempting connection to " + device_address + "...")
+            # print("Attempting connection to " + device_address + "...")
 
             devices = await discover(timeout=2)
             for d in devices:
@@ -110,23 +121,13 @@ async def connect_to_device(event_loop, device_address):
                 if d.name not in ["Unknown", "Microsoft", "Apple, Inc.", "", "LE_WH-1000XM4"]:
                     print(d)
 
-            async with BleakClient(device_address, loop=event_loop) as client:
-                x = await client.is_connected()
-                connected_devices += 1
-                print("Connected to " + str(connected_devices) + " devices out of " + str(len(address_hashes)) + ".")
+            disconnected_event = asyncio.Event()
 
-                name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
-                print('\nConnected to device {} ({})'.format(device_address, name.decode(encoding="utf-8")))
-                disconnected_event = asyncio.Event()
+            def disconnect_callback(client):
+                print("Disconnected callback called!")
+                disconnected_event.set()
 
-                def disconnect_callback(client):
-                    global connected_devices
-                    print("Disconnected callback called!")
-                    connected_devices -= 1
-                    loop.call_soon_threadsafe(disconnected_event.set)
-                    print("Connection lost. Retrying...")
-
-                client.set_disconnected_callback(disconnect_callback)
+            async with BleakClient(device_address, disconnected_callback=disconnect_callback) as client:
 
                 # Gait Data
                 await client.start_notify('2c86686a-53dc-25b3-0c4a-f0e10c8d9e26', gait_notification_handler)
@@ -144,45 +145,27 @@ async def connect_to_device(event_loop, device_address):
 
 
 def create_csv_if_not_exist(filename_address):
-    # output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
-    # if not os.path.exists(output_file_name):
-    #     os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
-    # else:
-    #     num = 1
-    #     # Dynamically add new file to prevent interacting with old data (with each session)
-    #     while os.path.exists(output_file_name):
-    #         output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + "(" + str(num) + ")" ".csv"
-    #         num += 1
+    global output_file_name
+    local_time_string = time.strftime("%Y_%m_%d__%H_%M_%S", time.localtime())
+    output_file_name = f'{DATA_FILE_PATH}{friendly_name}_{local_time_string}.csv'
+    if not path.exists(output_file_name):
+        os.makedirs(DATA_FOLDER_PATH, exist_ok=True)
 
-    # ---------------------------------
-    # This section overwrites existing file instead of creating new one
-    output_file_name = DATA_FILE_PATH + filename_address.replace(":", "_") + ".csv"
-
-    if os.path.exists(output_file_name):
-        os.remove(output_file_name)
-    # ---------------------------------
-
-    # Store the file path that we're writing to. The gait_notification_handler has no context for what file.
-    address_filePaths[filename_address] = output_file_name
-
-    new_file_headers = pd.DataFrame(columns=['Time:', 'Temperature:', 'Strain:', 'Battery:',
-                                             "Accel_X:", "Accel_Y:", "Accel_Z:", "Gyro_X:",
-                                             "Gyro_Y:", "Gyro_Z:", "Device Timestamp:"])
-    new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
+        new_file_headers = pd.DataFrame(columns=['Time:', 'Temperature:', 'Strain:', 'Battery:',
+                                                 "Accel_X:", "Accel_Y:", "Accel_Z:", "Gyro_X:",
+                                                 "Gyro_Y:", "Gyro_Z:", "Device Timestamp:"])
+        new_file_headers.to_csv(output_file_name, encoding='utf-8', index=False)
 
 
 if __name__ == "__main__":
     global handle_desc_pairs
     connected_devices = 0
-    hash_addresses()
-    print(address_hashes)
+    # hash_addresses()
+    # print(address_hashes)
 
-    for address in addresses:
-        create_csv_if_not_exist(address)
+    create_csv_if_not_exist(target_address)
 
     try:
-        loop = asyncio.get_event_loop()
-        tasks = asyncio.gather(*(connect_to_device(loop, address) for address in addresses))
-        loop.run_until_complete(tasks)
+        asyncio.run(connect_to_device(target_address))
     except TimeoutError as e:
         print(e)

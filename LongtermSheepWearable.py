@@ -33,6 +33,7 @@ if os.name == 'nt':
     target_name = "K BotLT2"
 else:
     target_address = "BC7C0E95-81FD-451E-2197-52D1FCAFF991"  # BonkFix
+    target_name = "K BotLT2"
 
 
 def nfc_tag_notification_handler(sender, data):

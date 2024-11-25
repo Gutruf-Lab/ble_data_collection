@@ -19,7 +19,7 @@ sys.coinit_flags = 2
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/")
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data")
 
-target_ble_address = "C5:B6:5F:E3:E1:B5"
+target_ble_address = "5A9EC758-C836-519F-E83A-D1CC636162AF"
 address_hash = ""
 output_file_name = ""
 
@@ -110,12 +110,13 @@ def ppg_notification_handler(sender, data):
     ys.append(ppg_val)
     xs = xs[-100:]
     ys = ys[-100:]
-    update_plot(xs, ys)
+    # update_plot(xs, ys)
 
     packaged_data = {"Time:": [time.time()],
                      "ECG ADC:": ecg_val,
                      "PPG ADC:": ppg_val
                      }
+    print(packaged_data)
 
     new_df = pd.DataFrame(packaged_data)
     new_df.to_csv(output_file_name, index=False, header=False, mode='a')
@@ -144,8 +145,17 @@ async def connect_to_device(address):
 
             async with BleakClient(address, disconnected_callback=disconnect_callback) as client:
 
-                name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
-                print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
+                # name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
+                # print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
+
+                for s in client.services:
+                    for char in s.characteristics:
+                        # print('Characteristic: {0}'.format(await client.get_all_for_characteristic(char)))
+                        print(f'[{char.uuid}] {char.description}:, {char.handle}, {char.properties}')
+                        # characteristic_names[char.handle] = (char.description + ':')
+                # name = await client.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
+                # print('\nConnected to device {} ({})'.format(address, name.decode(encoding="utf-8")))
+
 
                 # ECG/PPG String Data
                 await client.start_notify('6e400003-b5a3-f393-e0a9-e50e24dcca9e', ppg_notification_handler)
@@ -173,7 +183,7 @@ def create_csv_if_not_exist(filename_address):
 
 if __name__ == "__main__":
     connected_devices = 0
-    hash_addresses()
+    # hash_addresses()
 
     create_csv_if_not_exist(target_ble_address)
 

@@ -16,6 +16,7 @@ warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
 friendly_name = "Dania RD"
+target_name = "Dania RD"
 
 stream_data = {}
 battery_reading = 0
@@ -25,12 +26,11 @@ LED_PIN = 27
 addresses = []
 
 pin_flash_cycle_duration = 0
-DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/jesus_datacollection/circular_nfc/")
-DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/jesus_datacollection/circular_nfc/")
+DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/jesus_datacollection/circular_nfc/off_bone/")
+DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/jesus_datacollection/circular_nfc/off_bone/")
 
 if os.name == 'nt':
     target_address = "5E:B4:EF:EA:56:4D"
-    target_name = "Dania RD"
 else:
     target_address = "BC7C0E95-81FD-451E-2197-52D1FCAFF991"  # BonkFix
 
@@ -44,7 +44,7 @@ def nfc_tag_notification_handler(sender, data):
     # print(list_of_shorts)
     nfc_data_string = ''
 
-    for i in range(0, len(data), 2):
+    for i in range(0, len(data)-1, 2):
         nfc_data_string += f'{f"0x{data[i]:02x}{data[i + 1]:02x}":^1},'    # Insane nested f strings to group bytearray
 
     packaged_data = {"Received Timestamp:": time.time(),
@@ -112,6 +112,13 @@ async def connect_to_device(target_name):
                     # Raw NFC Data
                     await client.start_notify('0000fe44-8e22-4541-9d4c-21edae82ed19', nfc_tag_notification_handler)
                     await asyncio.sleep(20)
+
+                    df = pd.DataFrame.from_dict({"Received Timestamp:": time.time(),
+                                                 "Battery (mV):": '',
+                                                 "Streamed Data:": '',
+                                                 }, orient='index')
+                    df = df.transpose()
+                    df.to_csv(output_file_name, index=False, header=False, mode='a')
 
                     await client.disconnect()
                     break
