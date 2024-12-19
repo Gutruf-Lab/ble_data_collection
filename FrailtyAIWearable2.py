@@ -16,22 +16,22 @@ from struct import unpack
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
-friendly_name = "FrailAI"
+friendly_name = "FrailAI5"
 
 stream_data = {}
 output_file_name = ''
 
-DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2024_12_19/3step/")
-DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2024_12_19/3step/")
+DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2024_12_19/5step/")
+DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2024_12_19/5step/")
 
 if os.name == 'nt':
     target_address = "5E:B4:EF:EA:56:4D"
-    target_name = "Frail AI2"
+    target_name = "Frail AI5"
 else:
-    target_address = "D15D28B2-DE8A-2943-D43C-20AA7CB47BCF"  # FrailAI Wearable
-    target_name = "Frail AI2"
-    # target_address = "E68A7944-4970-863B-33AE-CA8E9736FA5F"  # FrailAI2 Wearable
-    # target_name = "FrailAI2"
+    # target_address = "D15D28B2-DE8A-2943-D43C-20AA7CB47BCF"  # FrailAI Wearable
+    # target_name = "FrailAI"
+    target_address = "E68A7944-4970-863B-33AE-CA8E9736FA5F"  # FrailAI2 Wearable
+    target_name = "Frail AI5"
 
 
 def frailty_gait_notification_handler(sender, data):
@@ -55,7 +55,7 @@ def frailty_gait_notification_handler(sender, data):
      overall_frailty_predict_prefrail,
      overall_frailty_predict_frail) = unpack('fff', data[476:488])
     (minirocket_predict_healthy,
-     minirocket_predict_prefrail) = unpack('ff', data[480:488])        # accidentally was overwriting overall frailty predict prefrail and frail
+     minirocket_predict_prefrail) = unpack('ff', data[488:496])        # accidentally was overwriting overall frailty predict prefrail and frail
     sample_point_times = []
     gyro_z = []
     for index, val in enumerate(gyro_z_raw):
