@@ -16,22 +16,22 @@ from struct import unpack
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
-friendly_name = "FrailAI5"
+friendly_name = "FrailAICont"
 
 stream_data = {}
 output_file_name = ''
 
-DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2025_02_27/5step/")
-DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2025_02_27/5step/")
+DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2025_05_01/continuous/")
+DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2025_05_01/continuous/")
 
 if os.name == 'nt':
     target_address = "5E:B4:EF:EA:56:4D"
-    target_name = "Frail AI5"
+    target_name = "Frail AI Cont"
 else:
     # target_address = "D15D28B2-DE8A-2943-D43C-20AA7CB47BCF"  # FrailAI Wearable
     # target_name = "FrailAI"
     target_address = "E68A7944-4970-863B-33AE-CA8E9736FA5F"  # FrailAI2 Wearable
-    target_name = "Frail AI5"
+    target_name = "Frail AI Cont"
 
 
 def frailty_gait_notification_handler(sender, data):
@@ -41,42 +41,44 @@ def frailty_gait_notification_handler(sender, data):
     (last_sample_time,
      time_step,
      skipped_samples_time_offset,
-     snippet_start_time) = unpack('f' * 4, data[0:16])
+     # snippet_start_time
+     # ) = unpack('f' * 4, data[0:16])
+     ) = unpack('f' * 3, data[0:12])
 
-    gyro_z_raw = unpack('h' * 218, data[16:452])
-
-    (exhaust_predict_healthy,
-     exhaust_predict_prefrail,
-     exhaust_predict_frail) = unpack('fff', data[452:464])
-    (slow_predict_healthy,
-     slow_predict_prefrail,
-     slow_predict_frail) = unpack('fff', data[464:476])
-    (overall_frailty_predict_healthy,
-     overall_frailty_predict_prefrail,
-     overall_frailty_predict_frail) = unpack('fff', data[476:488])
-    (minirocket_predict_healthy,
-     minirocket_predict_prefrail) = unpack('ff', data[488:496])        # accidentally was overwriting overall frailty predict prefrail and frail
+    gyro_z_raw = unpack('h' * 200, data[16:416])
+    #
+    # (exhaust_predict_healthy,
+    #  exhaust_predict_prefrail,
+    #  exhaust_predict_frail) = unpack('fff', data[452:464])
+    # (slow_predict_healthy,
+    #  slow_predict_prefrail,
+    #  slow_predict_frail) = unpack('fff', data[464:476])
+    # (overall_frailty_predict_healthy,
+    #  overall_frailty_predict_prefrail,
+    #  overall_frailty_predict_frail) = unpack('fff', data[476:488])
+    # (minirocket_predict_healthy,
+    #  minirocket_predict_prefrail) = unpack('ff', data[488:496])        # accidentally was overwriting overall frailty predict prefrail and frail
     sample_point_times = []
     gyro_z = []
     for index, val in enumerate(gyro_z_raw):
         gyro_z.append((2000 / ((float((1 << 16) / 2.0)) + 0)) * val)
-        sample_point_times.append(snippet_start_time + (index * time_step))
+        sample_point_times.append(last_sample_time + skipped_samples_time_offset + (index * time_step))
 
     packaged_data = {'Received_timestamp:': time.time(),
                      'Time:': sample_point_times,
                      'Gyro_Z:': gyro_z,
                      'Time_step:': time_step,
-                     'Exhaustion_Healthy:': exhaust_predict_healthy * 100,
-                     'Exhaustion_Prefrail:': exhaust_predict_prefrail * 100,
-                     'Exhaustion_Frail:': exhaust_predict_frail * 100,
-                     'Slowness_Healthy:': slow_predict_healthy * 100,
-                     'Slowness_Prefrail:': slow_predict_prefrail * 100,
-                     'Slowness_Frail:': slow_predict_frail * 100,
-                     'Overall_Frailty_Healthy:': overall_frailty_predict_healthy * 100,
-                     'Overall_Frailty_Prefrail:': overall_frailty_predict_prefrail * 100,
-                     'Overall_Frailty_Frail:': overall_frailty_predict_frail * 100,
-                     'MINIROCKET_Healthy_Prob:': minirocket_predict_healthy * 100,
-                     'MINIROCKET_Prefrail_Prob:': minirocket_predict_prefrail * 100
+                     # 'Exhaustion_Healthy:': exhaust_predict_healthy * 100,
+                     # 'Exhaustion_Prefrail:': exhaust_predict_prefrail * 100,
+                     # 'Exhaustion_Frail:': exhaust_predict_frail * 100,
+                     # 'Slowness_Healthy:': slow_predict_healthy * 100,
+                     # 'Slowness_Prefrail:': slow_predict_prefrail * 100,
+                     # 'Slowness_Frail:': slow_predict_frail * 100,
+                     # 'Overall_Frailty_Healthy:': overall_frailty_predict_healthy * 100,
+                     # 'Overall_Frailty_Prefrail:': overall_frailty_predict_prefrail * 100,
+                     # 'Overall_Frailty_Frail:': overall_frailty_predict_frail * 100,
+                     # 'MINIROCKET_Healthy_Prob:': minirocket_predict_healthy * 100,
+                     # 'MINIROCKET_Prefrail_Prob:': minirocket_predict_prefrail * 100
                      }
 
     print(packaged_data)
@@ -153,17 +155,18 @@ def create_csv_if_not_exist(filename_address):
                                                    'Time:',
                                                    'Gyro_Z:',
                                                    'Time_step:',
-                                                   'Exhaustion_Healthy:',
-                                                   'Exhaustion_Prefrail:',
-                                                   'Exhaustion_Frail:',
-                                                   'Slowness_Healthy:',
-                                                   'Slowness_Prefrail:',
-                                                   'Slowness_Frail:',
-                                                   'Overall_Frailty_Healthy:',
-                                                   'Overall_Frailty_Prefrail:',
-                                                   'Overall_Frailty_Frail:',
-                                                   'MINIROCKET_Healthy_Prob:',
-                                                   'MINIROCKET_Prefrail_Prob:'])
+                                                   # 'Exhaustion_Healthy:',
+                                                   # 'Exhaustion_Prefrail:',
+                                                   # 'Exhaustion_Frail:',
+                                                   # 'Slowness_Healthy:',
+                                                   # 'Slowness_Prefrail:',
+                                                   # 'Slowness_Frail:',
+                                                   # 'Overall_Frailty_Healthy:',
+                                                   # 'Overall_Frailty_Prefrail:',
+                                                   # 'Overall_Frailty_Frail:',
+                                                   # 'MINIROCKET_Healthy_Prob:',
+                                                   # 'MINIROCKET_Prefrail_Prob:'
+                                                   ])
         new_file_headers.to_csv(output_file_name, encoding = 'utf-8', index = False)
 
 

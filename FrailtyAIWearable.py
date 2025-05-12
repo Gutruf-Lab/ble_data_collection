@@ -21,15 +21,15 @@ friendly_name = "FrailAI"
 stream_data = {}
 output_file_name = ''
 
-DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2024_12_19/3step/")
-DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2024_12_19/3step/")
+DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2025_05_01/infer/")
+DATA_FOLDER_PATH = os.path.join(os.path.dirname(__file__), "data/flinn_2/2025_05_01/infer/")
 
 if os.name == 'nt':
     target_address = "5E:B4:EF:EA:56:4D"
-    target_name = "Frail AI2"
+    target_name = "Frail AI Infe"
 else:
-    target_address = "D15D28B2-DE8A-2943-D43C-20AA7CB47BCF"  # FrailAI Wearable
-    target_name = "Frail AI2"
+    target_address = "E68A7944-4970-863B-33AE-CA8E9736FA5F"  # FrailAI Wearable
+    target_name = "Frail AI Infe"
     # target_address = "E68A7944-4970-863B-33AE-CA8E9736FA5F"  # FrailAI2 Wearable
     # target_name = "FrailAI2"
 
